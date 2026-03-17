@@ -16,9 +16,6 @@ urlpatterns = [
     path("auth/login/", TokenObtainPairView.as_view(), name="login"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
-    path("clients/", include(router.urls)),
-    path("policies/", include(router.urls)),
-
-    path("tickets/", include(router.urls)),
+    path("", include(router.urls)),
     path("users/", include("users.urls")),
 ]

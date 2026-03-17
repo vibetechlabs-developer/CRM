@@ -6,29 +6,42 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Shield, Mail, Lock, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-
+import api from "@/lib/api";
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@gmail.com");
+  // const [email, setEmail] = useState("admin@gmail.com");
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    // Simulate slight network delay for better UX
-    setTimeout(() => {
-      if (login(email, password)) {
-        navigate("/");
-      } else {
-        setError("Invalid credentials. Use admin@gmail.com / admin123");
-        setIsLoading(false);
-      }
-    }, 600);
+    try {
+      const response = await api.post("/api/auth/login/", {
+        username: username, 
+        password: password,
+      });
+
+      const data = response.data;
+
+      localStorage.setItem("access_token", data.access);
+      localStorage.setItem("refresh_token", data.refresh);
+
+      
+      login(data.access);
+
+      
+      navigate("/");
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.response?.data?.error || err.message || "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -55,26 +68,28 @@ const Login = () => {
 
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Email Address</Label>
+                <Label htmlFor="username" className="text-sm font-medium">Username</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    type="email"
-                    placeholder="name@example.com"
+                    id="username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    type="text"
+                    placeholder="Enter your username"
                     className="pl-9 bg-secondary/50 focus-visible:bg-background h-11"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Password</Label>
+                  <Label htmlFor="password" className="text-sm font-medium">Password</Label>
                   <a href="#" className="text-xs text-primary font-medium hover:underline">Forgot password?</a>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
+                    id="password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     type="password"
@@ -106,7 +121,7 @@ const Login = () => {
 
           <div className="bg-secondary/50 px-8 py-4 border-t flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3 w-3 text-success" />
-            Use <span className="font-semibold text-foreground">admin@gmail.com</span> / <span className="font-semibold text-foreground">admin123</span>
+            Use <span className="font-semibold text-foreground">admin</span> / <span className="font-semibold text-foreground">admin123</span>
           </div>
         </Card>
       </div>

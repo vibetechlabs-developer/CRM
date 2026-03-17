@@ -3,7 +3,7 @@ import { useState, createContext, useContext, ReactNode } from "react";
 interface AuthContextType {
   isLoggedIn: boolean;
   user: { name: string; email: string; role: string } | null;
-  login: (email: string, password: string) => boolean;
+  login: (token: string, userDetails?: { name: string; email: string; role: string }) => void;
   logout: () => void;
 }
 
@@ -16,20 +16,18 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("access_token"));
   const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
 
-  const login = (email: string, password: string) => {
-    // Accept only admin@gmail.com / admin123
-    if (email === "admin@gmail.com" && password === "admin123") {
-      setUser({ name: "Admin", email: "admin@gmail.com", role: "Admin" });
-      setIsLoggedIn(true);
-      return true;
-    }
-    return false;
+  const login = (token: string, userDetails?: { name: string; email: string; role: string }) => {
+    // You can decode the JWT token here to get user info if userDetails aren't provided
+    setUser(userDetails || { name: "User", email: "user@example.com", role: "User" });
+    setIsLoggedIn(true);
   };
 
   const logout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     setUser(null);
     setIsLoggedIn(false);
   };
