@@ -1,11 +1,55 @@
-import { tickets } from "@/lib/data";
+import { useQuery } from "@tanstack/react-query";
+import api, { fetchAllPages } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { format } from "date-fns";
+
+const getTypeDisplay = (backendCode: string) => {
+    switch(backendCode) {
+        case "NEW": return "New Policy";
+        case "RENEWAL": return "Renewal";
+        case "ADJUSTMENT": return "Adjustment";
+        case "CANCELLATION": return "Cancellation";
+        default: return "Unknown";
+    }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formatTicket = (t: any) => {
+    const { client_name = "", client_last_name = "" } = t;
+    const computedName = `${client_name} ${client_last_name}`.trim();
+
+    // Get agent name - prefer assigned_to_name, fallback to assigned_to_username, then "Unassigned"
+    let assignedToDisplay = "Unassigned";
+    if (t.assigned_to_name) {
+        assignedToDisplay = t.assigned_to_name;
+    } else if (t.assigned_to_username) {
+        assignedToDisplay = t.assigned_to_username;
+    } else if (t.assigned_to) {
+        // Fallback for old data format
+        assignedToDisplay = typeof t.assigned_to === 'object' ? (t.assigned_to.username || 'Unknown') : `User ${t.assigned_to}`;
+    }
+
+    return {
+        id: t.id,
+        ticket_no: t.ticket_no,
+        clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
+        type: getTypeDisplay(t.ticket_type),
+        insuranceType: t.insurance_type,
+        assignedTo: assignedToDisplay,
+        createdDate: new Date(t.created_at).toLocaleDateString(),
+    };
+};
 
 export default function DiscardedLeads() {
-    const discardedTickets = tickets.filter(t => t.stage === "Discarded Leads");
+    const { data, isLoading, error } = useQuery({
+        queryKey: ["tickets", "discarded"],
+        queryFn: async () => {
+            return await fetchAllPages("/api/tickets/?status=DISCARDED");
+        }
+    });
+
+    const discardedTickets = (data || []).map(formatTicket);
 
     return (
         <div className="space-y-6 h-full flex flex-col max-w-[1200px] mx-auto w-full">
@@ -34,7 +78,19 @@ export default function DiscardedLeads() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {discardedTickets.length === 0 ? (
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                        Loading discarded leads...
+                                    </TableCell>
+                                </TableRow>
+                            ) : error ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center text-destructive">
+                                        Failed to load discarded leads.
+                                    </TableCell>
+                                </TableRow>
+                            ) : discardedTickets.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                                         No discarded leads found.
@@ -43,7 +99,7 @@ export default function DiscardedLeads() {
                             ) : (
                                 discardedTickets.map((ticket) => (
                                     <TableRow key={ticket.id}>
-                                        <TableCell className="font-medium font-mono text-muted-foreground">{ticket.id}</TableCell>
+                                        <TableCell className="font-medium font-mono text-muted-foreground">#{String(ticket.ticket_no).split("-")[1] || ticket.ticket_no}</TableCell>
                                         <TableCell className="font-semibold">{ticket.clientName}</TableCell>
                                         <TableCell>{ticket.insuranceType}</TableCell>
                                         <TableCell>

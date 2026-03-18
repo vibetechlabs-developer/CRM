@@ -25,7 +25,7 @@ def handle_ticket_created(sender, instance, created, **kwargs):
         )
 
         # Run auto assignment if no agent assigned
-        if not instance.assigned_agent:
+        if not instance.assigned_to:
             auto_assign_ticket(instance)
 
 

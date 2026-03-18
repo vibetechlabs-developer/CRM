@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { clients, Client } from "@/lib/data";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -7,33 +8,186 @@ import { Search, Plus, Mail, Phone, MapPin, Edit2, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import type { Client } from "@/lib/data";
 
 const Clients = () => {
   const [search, setSearch] = useState("");
-  const [clientList, setClientList] = useState<Client[]>(clients);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["clients", search],
+    queryFn: async () => {
+      // Backend is mounted under /api/, and DRF router registers 'clients' there -> /api/clients/
+      const response = await api.get("/api/clients/", {
+        params: search ? { search } : undefined,
+      });
+
+      // Support both plain list responses and paginated `{ results: [...] }` responses
+      const payload = response.data as any[] | { results?: any[] };
+
+      const rawItems = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload.results)
+        ? payload.results
+        : [];
+
+      // Normalize backend payload shape to our `Client` type used in the UI
+      const normalized: Client[] = rawItems.map((item) => {
+        const firstName = item.first_name ?? "";
+        const lastName = item.last_name ?? "";
+        const fullName = `${firstName} ${lastName}`.trim() || item.name || "Unknown";
+
+        // Backend numeric id
+        const backendId = item.id != null ? String(item.id) : "";
+
+        // Business client code
+        const clientCode =
+          (typeof item.client_id === "string" && item.client_id) || backendId;
+
+        // Format created_at into a readable date, fallback to empty string
+        let addedDate = "";
+        if (item.created_at) {
+          const d = new Date(item.created_at);
+          if (!Number.isNaN(d.getTime())) {
+            addedDate = d.toLocaleDateString(undefined, {
+              month: "short",
+              day: "2-digit",
+              year: "numeric",
+            });
+          }
+        }
+
+        return {
+          id: backendId,
+          clientCode,
+          name: fullName,
+          firstName,
+          lastName,
+          email: item.email ?? "",
+          phone: item.phone ?? "",
+          address: item.address ?? "",
+          // Backend will later provide real policy counts; default to 0 for now
+          policies: typeof item.policies === "number" ? item.policies : 0,
+          addedDate,
+        };
+      });
+
+      return normalized;
+    },
+  });
+
+  const [clientList, setClientList] = useState<Client[]>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [newClient, setNewClient] = useState({ name: "", email: "", phone: "", address: "" });
+  const [newClient, setNewClient] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    address: "",
+  });
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [actionType, setActionType] = useState<"view" | "edit" | null>(null);
+  const [editClient, setEditClient] = useState<{
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    address: string;
+  } | null>(null);
 
-  const filtered = clientList.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
-    c.id.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    if (Array.isArray(data)) {
+      setClientList(data);
+    } else {
+      setClientList([]);
+    }
+  }, [data]);
 
-  const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  const filtered: Client[] = Array.isArray(clientList) ? clientList : [];
+
+  const getInitials = (name?: string | null) => {
+    if (!name || typeof name !== "string") {
+      return "?";
+    }
+    return name
+      .split(" ")
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const addClientMutation = useMutation({
+    mutationFn: async () => {
+      // Backend expects first_name, last_name, email, phone, and optional address
+      const payload = {
+        first_name: newClient.first_name,
+        last_name: newClient.last_name,
+        email: newClient.email,
+        phone: newClient.phone,
+        address: newClient.address,
+      };
+      const response = await api.post("/api/clients/", payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      // Refresh clients list after successful creation
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setShowAdd(false);
+      setNewClient({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        address: "",
+      });
+    },
+  });
 
   const handleAddClient = () => {
-    setNewClient({ name: "", email: "", phone: "", address: "" });
-    setShowAdd(false);
+    addClientMutation.mutate();
   };
 
   const openAction = (client: Client, type: "view" | "edit") => {
     setSelectedClient(client);
     setActionType(type);
+
+    if (type === "edit") {
+      const [firstNameFromName = "", ...restName] = client.name.split(" ");
+      const lastNameFromName = restName.join(" ");
+
+      setEditClient({
+        first_name: client.firstName ?? firstNameFromName,
+        last_name: client.lastName ?? lastNameFromName,
+        email: client.email ?? "",
+        phone: client.phone ?? "",
+        address: client.address ?? "",
+      });
+    }
   };
+
+  const updateClientMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedClient || !editClient) return;
+      const payload = {
+        first_name: editClient.first_name,
+        last_name: editClient.last_name,
+        email: editClient.email,
+        phone: editClient.phone,
+        address: editClient.address,
+      };
+      const response = await api.patch(`/api/clients/${selectedClient.id}/`, payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setActionType(null);
+      setSelectedClient(null);
+      setEditClient(null);
+    },
+  });
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -46,27 +200,91 @@ const Clients = () => {
             <Button className="gap-2 shrink-0"><Plus className="h-4 w-4" /> Add Client</Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Add New Client</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Add New Client</DialogTitle>
+              <DialogDescription>
+                Fill in the details below to create a new client record.
+              </DialogDescription>
+            </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Full Name <span className="text-destructive">*</span></Label>
-                <Input value={newClient.name} onChange={e => setNewClient({ ...newClient, name: e.target.value })} placeholder="Enter full name" />
+                <Label className="text-sm font-medium">
+                  First Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={newClient.first_name}
+                  onChange={(e) =>
+                    setNewClient({ ...newClient, first_name: e.target.value })
+                  }
+                  placeholder="Enter first name"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Email <span className="text-destructive">*</span></Label>
-                <Input value={newClient.email} onChange={e => setNewClient({ ...newClient, email: e.target.value })} placeholder="Enter email" type="email" />
+                <Label className="text-sm font-medium">
+                  Last Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={newClient.last_name}
+                  onChange={(e) =>
+                    setNewClient({ ...newClient, last_name: e.target.value })
+                  }
+                  placeholder="Enter last name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Email <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={newClient.email}
+                  onChange={(e) =>
+                    setNewClient({ ...newClient, email: e.target.value })
+                  }
+                  placeholder="Enter email"
+                  type="email"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Phone</Label>
-                <Input value={newClient.phone} onChange={e => setNewClient({ ...newClient, phone: e.target.value })} placeholder="Enter phone number" />
+                <Input
+                  value={newClient.phone}
+                  onChange={(e) =>
+                    setNewClient({ ...newClient, phone: e.target.value })
+                  }
+                  placeholder="Enter phone number"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Address</Label>
-                <Input value={newClient.address} onChange={e => setNewClient({ ...newClient, address: e.target.value })} placeholder="Enter address" />
+                <Input
+                  value={newClient.address}
+                  onChange={(e) =>
+                    setNewClient({ ...newClient, address: e.target.value })
+                  }
+                  placeholder="Enter address"
+                />
               </div>
               <div className="flex gap-3 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setShowAdd(false)}>Cancel</Button>
-                <Button onClick={handleAddClient} className="flex-1" disabled={!newClient.name || !newClient.email}>Add Client</Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowAdd(false)}
+                  disabled={addClientMutation.status === "pending"}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAddClient}
+                  className="flex-1"
+                  disabled={
+                    !newClient.first_name ||
+                    !newClient.last_name ||
+                    !newClient.email ||
+                    addClientMutation.status === "pending"
+                  }
+                >
+                  {addClientMutation.status === "pending" ? "Adding..." : "Add Client"}
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -79,7 +297,15 @@ const Clients = () => {
 
       {/* Summary row */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{filtered.length}</span> clients found
+        {isLoading ? (
+          <span className="font-medium text-foreground">Loading clients...</span>
+        ) : isError ? (
+          <span className="font-medium text-destructive">Error loading clients</span>
+        ) : (
+          <>
+            <span className="font-medium text-foreground">{filtered.length}</span> clients found
+          </>
+        )}
       </div>
 
       <Card className="border shadow-sm overflow-hidden">
@@ -105,7 +331,9 @@ const Clients = () => {
                       </Avatar>
                       <div>
                         <p className="text-sm font-semibold">{client.name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{client.id}</p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {client.clientCode ?? client.id}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -154,7 +382,16 @@ const Clients = () => {
       </Card>
 
       {/* Action Dialog */}
-      <Dialog open={!!actionType} onOpenChange={() => setActionType(null)}>
+      <Dialog
+        open={!!actionType}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActionType(null);
+            setSelectedClient(null);
+            setEditClient(null);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
@@ -193,31 +430,91 @@ const Clients = () => {
                     </span>
                   </div>
                 </>
-              ) : actionType === "edit" ? (
+              ) : actionType === "edit" && editClient ? (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">Full Name</Label>
-                    <Input defaultValue={selectedClient.name} placeholder="Enter full name" />
+                    <Label className="text-sm font-medium">
+                      First Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      value={editClient.first_name}
+                      onChange={(e) =>
+                        setEditClient({ ...editClient, first_name: e.target.value })
+                      }
+                      placeholder="Enter first name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">
+                      Last Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      value={editClient.last_name}
+                      onChange={(e) =>
+                        setEditClient({ ...editClient, last_name: e.target.value })
+                      }
+                      placeholder="Enter last name"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Email</Label>
-                    <Input defaultValue={selectedClient.email} placeholder="Enter email" type="email" />
+                    <Input
+                      value={editClient.email}
+                      onChange={(e) =>
+                        setEditClient({ ...editClient, email: e.target.value })
+                      }
+                      placeholder="Enter email"
+                      type="email"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Phone</Label>
-                    <Input defaultValue={selectedClient.phone || ""} placeholder="Enter phone number" />
+                    <Input
+                      value={editClient.phone}
+                      onChange={(e) =>
+                        setEditClient({ ...editClient, phone: e.target.value })
+                      }
+                      placeholder="Enter phone number"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Address</Label>
-                    <Input defaultValue={selectedClient.address || ""} placeholder="Enter address" />
+                    <Input
+                      value={editClient.address}
+                      onChange={(e) =>
+                        setEditClient({ ...editClient, address: e.target.value })
+                      }
+                      placeholder="Enter address"
+                    />
                   </div>
                 </>
               ) : null}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActionType(null)}>Close</Button>
-            {actionType === "edit" && <Button onClick={() => setActionType(null)}>Save changes</Button>}
+            <Button
+              variant="outline"
+              onClick={() => {
+                setActionType(null);
+                setSelectedClient(null);
+                setEditClient(null);
+              }}
+            >
+              Close
+            </Button>
+            {actionType === "edit" && editClient && (
+              <Button
+                onClick={() => updateClientMutation.mutate()}
+                disabled={
+                  updateClientMutation.status === "pending" ||
+                  !editClient.first_name ||
+                  !editClient.last_name ||
+                  !editClient.email
+                }
+              >
+                {updateClientMutation.status === "pending" ? "Saving..." : "Save changes"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

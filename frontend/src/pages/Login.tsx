@@ -11,8 +11,8 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   // const [email, setEmail] = useState("admin@gmail.com");
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState("Nishita");
+  const [password, setPassword] = useState("Abcd@1234");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 

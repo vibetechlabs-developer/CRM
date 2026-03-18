@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
 import { insuranceTypes, priorities } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +21,7 @@ const requestTypes = [
 
 const NewTicket = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState<RequestType | null>(null);
   const [clientId, setClientId] = useState("");
   const [priority, setPriority] = useState<Priority>("Medium");
@@ -28,8 +31,62 @@ const NewTicket = () => {
     requestedChanges: "", notes: "",
   });
 
+  const { data: clientsData = [], isLoading: isClientsLoading } = useQuery({
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const res = await api.get("/api/clients/");
+      return Array.isArray(res.data) ? res.data : (res.data?.results || []);
+    }
+  });
+
   const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
-  const isFormValid = selectedType && form.clientName && form.email && form.insuranceType;
+  const isFormValid = selectedType && clientId && form.insuranceType;
+
+  const createTicketMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const response = await api.post("/api/tickets/", payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      navigate("/tickets");
+    },
+  });
+
+  const getPriorityBackendCode = (priorityDisplay: string) => {
+      switch(priorityDisplay) {
+          case "Low": return "LOW";
+          case "Medium": return "MEDIUM";
+          case "High": return "HIGH";
+          default: return "MEDIUM";
+      }
+  };
+
+  const getTypeBackendCode = (typeDisplay: string) => {
+      switch(typeDisplay) {
+         case "New Policy": return "NEW";
+         case "Renewal": return "RENEWAL";
+         case "Adjustment": return "ADJUSTMENT";
+         case "Cancellation": return "CANCELLATION";
+         default: return "NEW";
+      }
+  };
+
+  const handleSubmit = () => {
+      if(!isFormValid) return;
+
+      const payload = {
+          ticket_type: getTypeBackendCode(selectedType || "New Policy"),
+          priority: getPriorityBackendCode(priority),
+          client: parseInt(clientId), 
+          insurance_type: form.insuranceType,
+          details: `Policy Number: ${form.policyNumber}\nCoverage: ${form.coverageAmount}\nChanges: ${form.requestedChanges}`,
+          additional_notes: form.notes,
+          source: "WEB"
+      };
+      
+      createTicketMutation.mutate(payload);
+  };
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -43,8 +100,6 @@ const NewTicket = () => {
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
       </div>
-
-     
 
       {/* Request Type Selection */}
       <Card className="border shadow-sm">
@@ -118,39 +173,53 @@ const NewTicket = () => {
             {/* Client Section */}
             <div>
               <h3 className="text-sm font-semibold mb-3 text-foreground">Client Information</h3>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Label className="text-sm font-medium">Find Existing Client</Label>
-                    <div className="flex gap-2 mt-1">
-                      <Input
-                        value={clientId}
-                        onChange={e => setClientId(e.target.value)}
-                        placeholder="Enter Client ID (e.g. C-1001)"
-                        className="flex-1"
-                      />
-                      <Button size="icon" variant="outline"><Search className="h-4 w-4" /></Button>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Select a Client <span className="text-destructive">*</span></Label>
+                  <Select value={clientId} onValueChange={(val) => {
+                       setClientId(val);
+                       const selectedClient = clientsData.find((c: any) => c.id.toString() === val);
+                       if (selectedClient) {
+                           updateForm("clientName", `${selectedClient.first_name} ${selectedClient.last_name}`);
+                           updateForm("email", selectedClient.email);
+                           updateForm("phone", selectedClient.phone);
+                           updateForm("address", selectedClient.address);
+                       }
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={isClientsLoading ? "Loading clients..." : "Search and select a client..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientsData.map((client: any) => (
+                         <SelectItem key={client.id} value={client.id.toString()}>
+                            {client.first_name} {client.last_name} ({client.email})
+                         </SelectItem>
+                      ))}
+                      {clientsData.length === 0 && !isClientsLoading && (
+                         <SelectItem value="none" disabled>No clients found</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {clientId && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-secondary/20 rounded-lg border border-border">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Client Name</Label>
+                      <p className="text-sm font-medium">{form.clientName}</p>
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Email Address</Label>
+                      <p className="text-sm font-medium">{form.email}</p>
+                    </div>
+                    {form.phone && (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Phone Number</Label>
+                        <p className="text-sm">{form.phone}</p>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">Client Full Name <span className="text-destructive">*</span></Label>
-                    <Input value={form.clientName} onChange={e => updateForm("clientName", e.target.value)} placeholder="Full name" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">Email Address <span className="text-destructive">*</span></Label>
-                    <Input value={form.email} onChange={e => updateForm("email", e.target.value)} placeholder="Email address" type="email" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">Phone Number</Label>
-                    <Input value={form.phone} onChange={e => updateForm("phone", e.target.value)} placeholder="Phone number" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">Mailing Address</Label>
-                    <Input value={form.address} onChange={e => updateForm("address", e.target.value)} placeholder="Address" />
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -190,7 +259,9 @@ const NewTicket = () => {
 
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={() => navigate(-1)} className="flex-1">Cancel</Button>
-              <Button className="flex-1" disabled={!isFormValid} onClick={() => navigate("/tickets")}>Submit Request</Button>
+              <Button className="flex-1" disabled={!isFormValid || createTicketMutation.status === "pending"} onClick={handleSubmit}>
+                {createTicketMutation.status === "pending" ? "Submitting..." : "Submit Request"}
+              </Button>
             </div>
           </CardContent>
         </Card>

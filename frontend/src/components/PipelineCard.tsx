@@ -59,7 +59,7 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
         <div className="flex items-start justify-between mb-2 relative z-20">
           <div className="flex flex-col">
             <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-md w-fit mb-1.5">
-              #{ticket.id.split("-")[1]}
+              #{String((ticket as any).ticket_no || ticket.id).split("-")[1] || String((ticket as any).ticket_no || ticket.id)}
             </span>
             <span className={`text-[9px] uppercase px-2 py-0.5 rounded border font-bold tracking-wider w-fit ${ticket.priority === "High" ? "bg-destructive/10 text-destructive border-destructive/20" :
               ticket.priority === "Medium" ? "bg-warning/10 text-warning border-warning/20" :
@@ -96,9 +96,9 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
         <div className="flex items-center justify-between mt-auto pt-3 border-t">
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6 border shadow-sm">
-              <AvatarFallback className="text-[10px] bg-secondary font-medium">{ticket.assignedTo[6] || "A"}</AvatarFallback>
+              <AvatarFallback className="text-[10px] bg-secondary font-medium">{(ticket.assignedTo && ticket.assignedTo !== "Unassigned") ? ticket.assignedTo.charAt(0).toUpperCase() : "U"}</AvatarFallback>
             </Avatar>
-            <span className="text-xs font-medium text-muted-foreground">{ticket.assignedTo}</span>
+            <span className="text-xs font-medium text-muted-foreground">{ticket.assignedTo || "Unassigned"}</span>
           </div>
           <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md">
             <Clock className="h-3 w-3" />

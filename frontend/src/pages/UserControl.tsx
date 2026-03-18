@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { users } from "@/lib/data";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { KeyRound, ShieldAlert, ShieldCheck, Mail, Edit2, Trash2, Plus, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -11,10 +12,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formatUser = (user: any) => ({
+   id: user.id,
+   name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username,
+   email: user.email,
+   role: user.role === "ADMIN" ? "Admin" : "Agent",
+   permissions: user.permissions || [],
+});
+
 const UserControl = () => {
+  const { data: usersData = [], isLoading } = useQuery({
+      queryKey: ["users"],
+      queryFn: async () => {
+          const res = await api.get("/api/users/");
+          return Array.isArray(res.data) ? res.data : (res.data?.results || []);
+      }
+  });
+
+  const users = usersData.map(formatUser);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionType, setActionType] = useState<"edit" | "access" | "delete" | null>(null);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const openAction = (user: any, type: "edit" | "access" | "delete") => {
     setSelectedUser(user);
     setActionType(type);
@@ -77,7 +99,15 @@ const UserControl = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">Loading users...</td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">No users found.</td>
+                </tr>
+              ) : users.map((user) => (
                 <tr key={user.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-3">

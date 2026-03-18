@@ -7,12 +7,20 @@ export type PipelineStage = "Lead/Inquiry" | "Document Collection" | "Processing
 export type UserRole = "Admin" | "Agent";
 
 export interface Client {
+  // Backend primary key (as string)
   id: string;
+  // Business/client-facing code like "CL-ACC34D"
+  clientCode?: string;
+  // Display name
   name: string;
+  // Optional raw first/last names when available from backend
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   address: string;
   policies: number;
+  // Human-readable "added" date
   addedDate: string;
 }
 
@@ -38,13 +46,76 @@ export interface User {
 }
 
 export const clients: Client[] = [
-  { id: "C-1013", name: "User 1", email: "user1@example.com", phone: "1234567890", address: "123 Oak Street, Downtown", policies: 0, addedDate: "Feb 26, 2026" },
-  { id: "C-1011", name: "User 2", email: "user2@example.com", phone: "1234567891", address: "456 Maple Avenue, Uptown", policies: 0, addedDate: "Feb 26, 2026" },
-  { id: "C-1009", name: "User 3", email: "user3@example.com", phone: "1234567123", address: "789 Pine Road, Midtown", policies: 0, addedDate: "Feb 24, 2026" },
-  { id: "C-1007", name: "User 4", email: "user4@example.com", phone: "1234567890", address: "321 Elm Lane, Westside", policies: 1, addedDate: "Feb 24, 2026" },
-  { id: "C-1006", name: "User 5", email: "user5@example.com", phone: "0987654321", address: "654 Birch Blvd, Eastside", policies: 1, addedDate: "Feb 24, 2026" },
-  { id: "C-1005", name: "User 6", email: "user6@example.com", phone: "1234567890", address: "987 Cedar Court, Northside", policies: 1, addedDate: "Feb 24, 2026" },
-  { id: "C-1004", name: "User 7", email: "user7@example.com", phone: "9876543210", address: "159 Walnut Drive, Southside", policies: 2, addedDate: "Feb 23, 2026" },
+  {
+    id: "1",
+    clientCode: "C-1013",
+    name: "User 1",
+    email: "user1@example.com",
+    phone: "1234567890",
+    address: "123 Oak Street, Downtown",
+    policies: 0,
+    addedDate: "Feb 26, 2026",
+  },
+  {
+    id: "2",
+    clientCode: "C-1011",
+    name: "User 2",
+    email: "user2@example.com",
+    phone: "1234567891",
+    address: "456 Maple Avenue, Uptown",
+    policies: 0,
+    addedDate: "Feb 26, 2026",
+  },
+  {
+    id: "3",
+    clientCode: "C-1009",
+    name: "User 3",
+    email: "user3@example.com",
+    phone: "1234567123",
+    address: "789 Pine Road, Midtown",
+    policies: 0,
+    addedDate: "Feb 24, 2026",
+  },
+  {
+    id: "4",
+    clientCode: "C-1007",
+    name: "User 4",
+    email: "user4@example.com",
+    phone: "1234567890",
+    address: "321 Elm Lane, Westside",
+    policies: 1,
+    addedDate: "Feb 24, 2026",
+  },
+  {
+    id: "5",
+    clientCode: "C-1006",
+    name: "User 5",
+    email: "user5@example.com",
+    phone: "0987654321",
+    address: "654 Birch Blvd, Eastside",
+    policies: 1,
+    addedDate: "Feb 24, 2026",
+  },
+  {
+    id: "6",
+    clientCode: "C-1005",
+    name: "User 6",
+    email: "user6@example.com",
+    phone: "1234567890",
+    address: "987 Cedar Court, Northside",
+    policies: 1,
+    addedDate: "Feb 24, 2026",
+  },
+  {
+    id: "7",
+    clientCode: "C-1004",
+    name: "User 7",
+    email: "user7@example.com",
+    phone: "9876543210",
+    address: "159 Walnut Drive, Southside",
+    policies: 2,
+    addedDate: "Feb 23, 2026",
+  },
 ];
 
 export const tickets: Ticket[] = [

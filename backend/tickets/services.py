@@ -7,35 +7,68 @@ def auto_assign_ticket(ticket):
     """
     Automatically assign a ticket to the best available agent
     based on insurance type, ticket type, and workload.
+    Uses a fallback mechanism to ensure assignment if agents exist.
     """
 
-    agents = (
-        User.objects.filter(
-            role="AGENT",
-            preferred_insurance_types__icontains=ticket.insurance_type
+    # Helper function to get agents with workload annotation
+    def get_agents_with_workload(base_filter):
+        return (
+            User.objects.filter(base_filter)
+            .annotate(
+                active_ticket_count=Count(
+                    "assigned_tickets",
+                    filter=Q(
+                        assigned_tickets__status__in=[
+                            "LEAD",
+                            "DOCS",
+                            "PROCESSING"
+                        ]
+                    )
+                )
+            )
+            .order_by("active_ticket_count")
         )
-        .filter(
+
+    best_agent = None
+
+    # Strategy 1: Match insurance type AND ticket type preferences
+    agents = get_agents_with_workload(
+        Q(role="AGENT") &
+        Q(preferred_insurance_types__icontains=ticket.insurance_type) &
+        (
             Q(assigned_ticket_types__icontains=ticket.ticket_type) |
             Q(assigned_ticket_types__isnull=True) |
             Q(assigned_ticket_types="")
         )
-        .annotate(
-            active_ticket_count=Count(
-                "assigned_tickets",
-                filter=Q(
-                    assigned_tickets__status__in=[
-                        "LEAD",
-                        "DOCS",
-                        "PROCESSING"
-                    ]
-                )
-            )
-        )
-        .order_by("active_ticket_count")
     )
-
     best_agent = agents.first()
 
+    # Strategy 2: Fallback - Match insurance type only (ignore ticket type)
+    if not best_agent:
+        agents = get_agents_with_workload(
+            Q(role="AGENT") &
+            Q(preferred_insurance_types__icontains=ticket.insurance_type)
+        )
+        best_agent = agents.first()
+
+    # Strategy 3: Fallback - Match ticket type only (ignore insurance type)
+    if not best_agent:
+        agents = get_agents_with_workload(
+            Q(role="AGENT") &
+            (
+                Q(assigned_ticket_types__icontains=ticket.ticket_type) |
+                Q(assigned_ticket_types__isnull=True) |
+                Q(assigned_ticket_types="")
+            )
+        )
+        best_agent = agents.first()
+
+    # Strategy 4: Fallback - Any available agent (least workload)
+    if not best_agent:
+        agents = get_agents_with_workload(Q(role="AGENT"))
+        best_agent = agents.first()
+
+    # Assign if agent found
     if best_agent:
         ticket.assigned_to = best_agent
         ticket.save(update_fields=['assigned_to'])

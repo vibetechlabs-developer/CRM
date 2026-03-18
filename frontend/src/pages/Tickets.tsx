@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { tickets, pipelineStages, priorities, type PipelineStage, type Priority } from "@/lib/data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api, { fetchAllPages } from "@/lib/api";
+import { pipelineStages, priorities, type PipelineStage, type Priority } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,9 +37,8 @@ const Tickets = () => {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  // Using generic `any` for ticket lists since it's mock
-  const [ticketList, setTicketList] = useState<any[]>(tickets);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const queryClient = useQueryClient();
 
   // Modal states
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
@@ -45,19 +46,122 @@ const Tickets = () => {
 
   const navigate = useNavigate();
 
-  const filtered = ticketList.filter(t => {
-    const matchSearch = t.clientName.toLowerCase().includes(search.toLowerCase()) || t.id.toLowerCase().includes(search.toLowerCase());
+  const { data: ticketsData = [], isLoading } = useQuery({
+    queryKey: ["tickets"],
+    queryFn: async () => {
+      return await fetchAllPages("/api/tickets/");
+    },
+  });
+
+  const updateTicketMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string | number; data: any }) => {
+      const response = await api.patch(`/api/tickets/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      setModalType(null); // Close modal on success if editing
+    },
+  });
+
+  // Mapping Backend values to Frontend values
+  const getTypeDisplay = (typeCode: string) => {
+      switch(typeCode) {
+         case "NEW": return "New Policy";
+         case "RENEWAL": return "Renewal";
+         case "ADJUSTMENT": return "Adjustment";
+         case "CANCELLATION": return "Cancellation";
+         default: return typeCode;
+      }
+  };
+
+  const getStatusDisplay = (statusCode: string) => {
+      switch(statusCode) {
+          case "LEAD": return "Lead/Inquiry";
+          case "DOCS": return "Document Collection";
+          case "PROCESSING": return "Processing";
+          case "COMPLETED": return "Completed";
+          case "DISCARDED": return "Discarded Leads";
+          default: return statusCode;
+      }
+  };
+
+  const getStatusBackendCode = (statusDisplay: string) => {
+      switch(statusDisplay) {
+          case "Lead/Inquiry": return "LEAD";
+          case "Document Collection": return "DOCS";
+          case "Processing": return "PROCESSING";
+          case "Completed": return "COMPLETED";
+          case "Discarded Leads": return "DISCARDED";
+          default: return "LEAD";
+      }
+  };
+
+  const getPriorityDisplay = (priorityCode: string) => {
+      switch(priorityCode) {
+          case "LOW": return "Low";
+          case "MEDIUM": return "Medium";
+          case "HIGH": return "High";
+          default: return "Medium";
+      }
+  };
+
+  const getPriorityBackendCode = (priorityDisplay: string) => {
+      switch(priorityDisplay) {
+          case "Low": return "LOW";
+          case "Medium": return "MEDIUM";
+          case "High": return "HIGH";
+          default: return "MEDIUM";
+      }
+  };
+  
+ const formatTicket = (t: any) => {
+      const { client_name = "", client_last_name = "" } = t;
+      const computedName = `${client_name} ${client_last_name}`.trim();
+      
+      // Get agent name - prefer assigned_to_name, fallback to assigned_to_username, then "Unassigned"
+      let assignedToDisplay = "Unassigned";
+      if (t.assigned_to_name) {
+          assignedToDisplay = t.assigned_to_name;
+      } else if (t.assigned_to_username) {
+          assignedToDisplay = t.assigned_to_username;
+      } else if (t.assigned_to) {
+          // Fallback for old data format
+          assignedToDisplay = typeof t.assigned_to === 'object' ? (t.assigned_to.username || 'Unknown') : `User ${t.assigned_to}`;
+      }
+      
+      return {
+          id: t.id,
+          ticket_no: t.ticket_no,
+          clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"), 
+          clientEmail: t.client_email || "N/A", 
+          type: getTypeDisplay(t.ticket_type),
+          insuranceType: t.insurance_type,
+          stage: getStatusDisplay(t.status),
+          priority: getPriorityDisplay(t.priority),
+          assignedTo: assignedToDisplay,
+          createdDate: new Date(t.created_at).toLocaleDateString(),
+      };
+  };
+
+
+  const rawTickets = Array.isArray(ticketsData) ? ticketsData : [];
+
+  const formattedTickets = rawTickets.map(formatTicket);
+
+  const filtered = formattedTickets.filter((t:any) => {
+    const matchSearch = t.clientName.toLowerCase().includes(search.toLowerCase()) || t.ticket_no.toLowerCase().includes(search.toLowerCase());
     const matchStage = stageFilter === "all" || t.stage === stageFilter;
     const matchPriority = priorityFilter === "all" || t.priority === priorityFilter;
     return matchSearch && matchStage && matchPriority;
   });
 
   const handleStageChange = (ticketId: string, newStage: PipelineStage) => {
-    setTicketList(prev => prev.map(t => t.id === ticketId ? { ...t, stage: newStage } : t));
+    updateTicketMutation.mutate({ id: ticketId, data: { status: getStatusBackendCode(newStage) } });
   };
 
   const handlePriorityChange = (ticketId: string, newPriority: Priority) => {
-    setTicketList(prev => prev.map(t => t.id === ticketId ? { ...t, priority: newPriority } : t));
+    updateTicketMutation.mutate({ id: ticketId, data: { priority: getPriorityBackendCode(newPriority) } });
   };
 
   const openModal = (ticket: any, type: "view" | "edit") => {
@@ -150,7 +254,7 @@ const Tickets = () => {
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold">{ticket.clientName}</span>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs font-mono text-primary font-medium">#{ticket.id.split("-")[1]}</span>
+                          <span className="text-xs font-mono text-primary font-medium">#{String(ticket.ticket_no).split("-")[1] || ticket.ticket_no}</span>
                           <span className="text-xs text-muted-foreground truncate max-w-[150px]">{ticket.clientEmail}</span>
                         </div>
                       </div>
@@ -193,7 +297,7 @@ const Tickets = () => {
                     <td className="p-4 hidden lg:table-cell">
                       <div className="flex items-center gap-2">
                         <Avatar className="h-6 w-6 border shadow-sm">
-                          <AvatarFallback className="text-[10px] bg-secondary font-medium">{ticket.assignedTo[6] || "A"}</AvatarFallback>
+                          <AvatarFallback className="text-[10px] bg-secondary font-medium">{(ticket.assignedTo && ticket.assignedTo !== "Unassigned") ? ticket.assignedTo.charAt(0).toUpperCase() : "U"}</AvatarFallback>
                         </Avatar>
                         <span className="text-sm font-medium">{ticket.assignedTo}</span>
                       </div>
@@ -216,9 +320,6 @@ const Tickets = () => {
                     </td>
                   </tr>
                 ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={7} className="p-10 text-center text-muted-foreground text-sm">No tickets found matching your criteria.</td></tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -226,11 +327,16 @@ const Tickets = () => {
       ) : (
         /* Grid View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(ticket => (
+          {isLoading ? (
+             <p className="text-muted-foreground col-span-full">Loading tickets...</p>
+          ) : filtered.length === 0 ? (
+             <p className="text-muted-foreground col-span-full">No tickets found.</p>
+          ) : (
+          filtered.map((ticket:any) => (
             <Card key={ticket.id} className="border shadow-sm hover:shadow-md transition-all group flex flex-col">
               <div className="p-4 flex-1">
                 <div className="flex items-start justify-between mb-3">
-                  <span className="text-xs font-mono font-medium text-primary px-2 py-1 bg-primary/10 rounded-md">#{ticket.id.split("-")[1]}</span>
+                  <span className="text-xs font-mono font-medium text-primary px-2 py-1 bg-primary/10 rounded-md">#{ticket.ticket_no.split("-")[1]}</span>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => openModal(ticket, "view")}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => openModal(ticket, "edit")}><Edit2 className="h-3.5 w-3.5" /></Button>
@@ -270,13 +376,13 @@ const Tickets = () => {
               </div>
               <div className="p-3 border-t bg-secondary/30 flex items-center justify-between text-xs text-muted-foreground mt-auto">
                 <div className="flex items-center gap-1.5">
-                  <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px] bg-secondary">{ticket.assignedTo[6] || "A"}</AvatarFallback></Avatar>
+                  <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px] bg-secondary">{(ticket.assignedTo && ticket.assignedTo !== "Unassigned") ? ticket.assignedTo.charAt(0).toUpperCase() : "U"}</AvatarFallback></Avatar>
                   <span className="font-medium">{ticket.assignedTo}</span>
                 </div>
                 <span>{ticket.createdDate}</span>
               </div>
             </Card>
-          ))}
+          )))}
         </div>
       )}
 

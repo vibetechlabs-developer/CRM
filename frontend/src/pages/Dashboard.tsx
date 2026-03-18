@@ -1,9 +1,75 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { tickets, clients, pipelineStages } from "@/lib/data";
+import { pipelineStages } from "@/lib/data";
 import { FileText, Users, CheckCircle, AlertTriangle, TrendingUp, Clock, BarChart3, PieChart, ArrowUpRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartPie, Pie, Cell, LineChart, Line } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import api, { fetchAllPages } from "@/lib/api";
+
+const getTypeDisplay = (backendCode: string) => {
+    switch(backendCode) {
+        case "NEW": return "New Policy";
+        case "RENEWAL": return "Renewal";
+        case "ADJUSTMENT": return "Adjustment";
+        case "CANCELLATION": return "Cancellation";
+        default: return "Unknown";
+    }
+};
+
+const getStatusDisplay = (backendCode: string) => {
+    switch(backendCode) {
+        case "LEAD": return "Lead/Inquiry";
+        case "DOCS": return "Documents Pending";
+        case "PROCESSING": return "Processing";
+        case "COMPLETED": return "Completed";
+        case "DISCARDED": return "Discarded Leads";
+        default: return "Unknown Phase";
+    }
+};
+
+const getPriorityDisplay = (backendCode: string) => {
+      switch(backendCode) {
+          case "LOW": return "Low";
+          case "MEDIUM": return "Medium";
+          case "HIGH": return "High";
+          default: return "Medium";
+      }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formatTicket = (t: any) => {
+    const { client_name = "", client_last_name = "" } = t;
+    const computedName = `${client_name} ${client_last_name}`.trim();
+
+    return {
+        id: t.id,
+        ticket_no: t.ticket_no,
+        clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
+        type: getTypeDisplay(t.ticket_type),
+        stage: getStatusDisplay(t.status),
+        priority: getPriorityDisplay(t.priority),
+        createdDate: new Date(t.created_at).toLocaleDateString(),
+    };
+};
 
 const Dashboard = () => {
+  const { data: rawTickets = [], isLoading: isLoadingTickets } = useQuery({
+      queryKey: ["tickets"],
+      queryFn: async () => {
+          return await fetchAllPages("/api/tickets/");
+      }
+  });
+
+  const { data: clientsData = [], isLoading: isLoadingClients } = useQuery({
+      queryKey: ["clients"],
+      queryFn: async () => {
+          const res = await api.get("/api/clients/");
+          return Array.isArray(res.data) ? res.data : (res.data?.results || []);
+      }
+  });
+
+  const isArrayTickets = Array.isArray(rawTickets) ? rawTickets : [];
+  const tickets = isArrayTickets.map(formatTicket);
+  const clients = Array.isArray(clientsData) ? clientsData : [];
   const totalTickets = tickets.length;
   const totalClients = clients.length;
   const completedTickets = tickets.filter(t => t.stage === "Completed").length;
@@ -58,6 +124,10 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {isLoadingTickets || isLoadingClients ? (
+        <div className="flex h-32 items-center justify-center text-muted-foreground">Loading dashboard data...</div>
+      ) : (
+      <>
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
@@ -205,7 +275,7 @@ const Dashboard = () => {
                 <div key={ticket.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{ticket.clientName}</p>
-                    <p className="text-xs text-muted-foreground">#{ticket.id.split("-")[1]} · {ticket.type}</p>
+                    <p className="text-xs text-muted-foreground">#{String(ticket.ticket_no).split("-")[1] || ticket.ticket_no} · {ticket.type}</p>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ml-2 ${ticket.priority === "High" ? "bg-destructive/10 text-destructive" :
                       ticket.priority === "Medium" ? "bg-warning/10 text-warning" :
@@ -219,6 +289,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 };

@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Ticket, TicketActivity
 from .serializers import TicketSerializer, TicketActivitySerializer
+from .services import auto_assign_ticket
 
 
 class TicketViewSet(ModelViewSet):
@@ -67,3 +68,53 @@ class TicketViewSet(ModelViewSet):
         )
 
         return Response(serializer.data)
+
+    # Custom API: Auto-assign a specific ticket
+    @action(detail=True, methods=['post'])
+    def auto_assign(self, request, pk=None):
+        """Manually trigger auto-assignment for a specific ticket"""
+        ticket = self.get_object()
+        
+        if ticket.assigned_to:
+            return Response({
+                "message": "Ticket is already assigned",
+                "assigned_to": ticket.assigned_to.username
+            })
+        
+        auto_assign_ticket(ticket)
+        ticket.refresh_from_db()
+        
+        if ticket.assigned_to:
+            return Response({
+                "message": "Ticket assigned successfully",
+                "assigned_to": ticket.assigned_to.username
+            })
+        else:
+            return Response({
+                "message": "No available agents found to assign this ticket"
+            }, status=404)
+
+    # Custom API: Auto-assign all unassigned tickets
+    @action(detail=False, methods=['post'])
+    def auto_assign_all(self, request):
+        """Auto-assign all unassigned tickets"""
+        unassigned_tickets = Ticket.objects.filter(assigned_to__isnull=True)
+        assigned_count = 0
+        failed_count = 0
+        
+        for ticket in unassigned_tickets:
+            old_assigned_to = ticket.assigned_to
+            auto_assign_ticket(ticket)
+            ticket.refresh_from_db()
+            
+            if ticket.assigned_to and ticket.assigned_to != old_assigned_to:
+                assigned_count += 1
+            else:
+                failed_count += 1
+        
+        return Response({
+            "message": f"Auto-assignment completed",
+            "assigned": assigned_count,
+            "failed": failed_count,
+            "total_processed": unassigned_tickets.count()
+        })

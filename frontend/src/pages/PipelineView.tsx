@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { tickets as initialTickets, pipelineStages, PipelineStage, Ticket } from "@/lib/data";
+import { useState, useEffect } from "react";
+import { pipelineStages, PipelineStage, Ticket } from "@/lib/data";
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,95 @@ const stageColors: Record<string, string> = {
   "Discarded Leads": "text-muted-foreground border-border bg-muted",
 };
 
+const getTypeDisplay = (backendCode: string) => {
+    switch(backendCode) {
+        case "NEW": return "New Policy";
+        case "RENEWAL": return "Renewal";
+        case "ADJUSTMENT": return "Adjustment";
+        case "CANCELLATION": return "Cancellation";
+        default: return "Unknown";
+    }
+};
+
+const getStatusDisplay = (backendCode: string) => {
+    switch(backendCode) {
+        case "LEAD": return "Lead/Inquiry";
+        case "DOCS": return "Document Collection";
+        case "PROCESSING": return "Processing";
+        case "COMPLETED": return "Completed";
+        case "DISCARDED": return "Discarded Leads";
+        default: return "Unknown Phase";
+    }
+};
+
+const getStatusBackendCode = (displayCode: string) => {
+    switch(displayCode) {
+        case "Lead/Inquiry": return "LEAD";
+        case "Document Collection": return "DOCS";
+        case "Processing": return "PROCESSING";
+        case "Completed": return "COMPLETED";
+        case "Discarded Leads": return "DISCARDED";
+        default: return "LEAD";
+    }
+}
+
+const getPriorityDisplay = (backendCode: string) => {
+      switch(backendCode) {
+          case "LOW": return "Low";
+          case "MEDIUM": return "Medium";
+          case "HIGH": return "High";
+          default: return "Medium";
+      }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formatTicket = (t: any): Ticket => {
+    const { client_name = "", client_last_name = "" } = t;
+    const computedName = `${client_name} ${client_last_name}`.trim();
+
+    return {
+        id: String(t.id),
+        ticket_no: t.ticket_no,
+        clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
+        type: getTypeDisplay(t.ticket_type),
+        stage: getStatusDisplay(t.status) as PipelineStage,
+        priority: getPriorityDisplay(t.priority),
+        createdDate: new Date(t.created_at).toLocaleDateString(),
+        assignedTo: t.assigned_to ? `User ${t.assigned_to}` : "Unassigned",
+        // Note: For typing to work flawlessly we map `id` to string in UI
+    } as any;
+};
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api, { fetchAllPages } from "@/lib/api";
+
 const PipelineView = () => {
   const navigate = useNavigate();
-  const [tickets, setTickets] = useState(initialTickets);
+  const queryClient = useQueryClient();
+  const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+
+  const { data: ticketsData, isLoading } = useQuery({
+      queryKey: ["tickets"],
+      queryFn: async () => {
+          return await fetchAllPages("/api/tickets/");
+      }
+  });
+
+  useEffect(() => {
+    const isArrayTickets = Array.isArray(ticketsData) ? ticketsData : [];
+    setLocalTickets(isArrayTickets.map(formatTicket));
+  }, [ticketsData]);
+
+  const updateTicketMutation = useMutation({
+      mutationFn: async ({ id, status }: { id: string, status: string }) => {
+          const res = await api.post(`/api/tickets/${id}/change_status/`, { status });
+          return res.data;
+      },
+      onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      }
+  });
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -55,15 +140,22 @@ const PipelineView = () => {
 
     if (!over) return;
 
-    const ticketId = active.id;
+    const ticketId = active.id as string;
     const newStage = over.id as PipelineStage;
 
-    setTickets(prev => prev.map(t => {
+    // Optimistically update
+    setLocalTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
         return { ...t, stage: newStage };
       }
       return t;
     }));
+
+    // Dispatch update to API
+    updateTicketMutation.mutate({
+      id: ticketId,
+      status: getStatusBackendCode(newStage)
+    });
   };
 
   return (
@@ -84,8 +176,12 @@ const PipelineView = () => {
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start pb-4">
-          {pipelineStages.map((stage) => {
-            const stageTickets = tickets.filter(t => t.stage === stage);
+          {isLoading ? (
+            <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground">
+              Loading pipeline...
+            </div>
+          ) : pipelineStages.map((stage) => {
+            const stageTickets = localTickets.filter(t => t.stage === stage);
             const colors = stageColors[stage].split(" ");
             const textColor = colors[0];
             const borderColor = colors[1];
