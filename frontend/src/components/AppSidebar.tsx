@@ -1,4 +1,4 @@
-import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, LogOut, Ban, ArchiveX } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, LogOut, Ban, ArchiveX, FileEdit } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +17,7 @@ const overviewItems = [
 const managementItems = [
   { title: "Clients", url: "/clients", icon: Users },
   { title: "Tickets", url: "/tickets", icon: FileText },
+  { title: "Insurance Form", url: "/insurance-form/manual", icon: FileEdit },
   { title: "Discarded Leads", url: "/discarded-leads", icon: ArchiveX },
 ];
 

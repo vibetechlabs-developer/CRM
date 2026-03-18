@@ -15,6 +15,8 @@ import SettingsPage from "./pages/SettingsPage";
 import DiscardedLeads from "./pages/DiscardedLeads";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import InsuranceForm from "./pages/InsuranceForm";
+import InsuranceFormManual from "./pages/InsuranceFormManual";
 import ScrollToTop from "./components/ScrollToTop";
 
 const queryClient = new QueryClient();
@@ -31,6 +33,7 @@ function ProtectedRoutes() {
         <Route path="/clients" element={<Clients />} />
         <Route path="/tickets" element={<Tickets />} />
         <Route path="/new-ticket" element={<NewTicket />} />
+        <Route path="/insurance-form/manual" element={<InsuranceFormManual />} />
         <Route path="/discarded-leads" element={<DiscardedLeads />} />
         <Route path="/user-control" element={<UserControl />} />
         <Route path="/settings" element={<SettingsPage />} />
@@ -50,6 +53,7 @@ const App = () => (
           <ScrollToTop />
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/insurance-form" element={<InsuranceForm />} />
             <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
         </BrowserRouter>
