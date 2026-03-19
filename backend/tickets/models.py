@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import IntegrityError, models, router, transaction
 from clients.models import Client
 from policies.models import Policy
 from users.models import User
@@ -94,18 +94,52 @@ class Ticket(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-            if not self.ticket_no:
-                last_ticket = Ticket.objects.order_by('-id').first()
+        """
+        Generate `ticket_no` safely under concurrency.
 
-                if last_ticket and last_ticket.ticket_no:
-                    # Extract numeric part
-                    last_number = int(last_ticket.ticket_no.split('-')[1])
-                    new_number = last_number + 1
-                    self.ticket_no = f"INS-{new_number:05d}"
-                else:
-                    self.ticket_no = "INS-00001"
+        The old implementation queried the last row and then incremented in Python,
+        which can race under concurrent requests and violate `unique=True`.
+        """
+        if self.ticket_no:
+            return super().save(*args, **kwargs)
 
-            super().save(*args, **kwargs)
+        # Only auto-generate on initial create; leave updates unchanged.
+        if self.pk:
+            return super().save(*args, **kwargs)
+
+        using = kwargs.get("using") or router.db_for_write(self.__class__, instance=self)
+        prefix = "INS-"
+        width = 5
+
+        # Retry handles the "no existing rows" case where select_for_update can't lock anything yet.
+        for _attempt in range(5):
+            try:
+                with transaction.atomic(using=using):
+                    last_ticket = (
+                        Ticket.objects.using(using)
+                        .select_for_update()
+                        .filter(ticket_no__startswith=prefix)
+                        .order_by("-ticket_no")
+                        .first()
+                    )
+
+                    if last_ticket and last_ticket.ticket_no:
+                        try:
+                            last_number = int(last_ticket.ticket_no.split("-", 1)[1])
+                        except (IndexError, ValueError):
+                            last_number = 0
+                        next_number = last_number + 1
+                    else:
+                        next_number = 1
+
+                    self.ticket_no = f"{prefix}{next_number:0{width}d}"
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                # Another concurrent transaction grabbed the same number first; retry.
+                self.ticket_no = ""
+                continue
+
+        raise IntegrityError("Failed to generate a unique ticket number after multiple attempts.")
 
     def __str__(self):
         return self.ticket_no
@@ -151,3 +185,22 @@ class Note(models.Model):
 
     def __str__(self):
         return f"Note for {self.ticket.ticket_no}"
+
+
+class Notification(models.Model):
+    """
+    Simple in-app notification store (polled by frontend).
+    Used to provide "real-time" updates without websockets initially.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, null=True, blank=True, related_name="notifications")
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Notification to {self.user_id}"

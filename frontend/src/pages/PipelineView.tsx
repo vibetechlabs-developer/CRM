@@ -68,6 +68,10 @@ const getPriorityDisplay = (backendCode: string) => {
 const formatTicket = (t: any): Ticket => {
     const { client_name = "", client_last_name = "" } = t;
     const computedName = `${client_name} ${client_last_name}`.trim();
+    const assignedToDisplay =
+        t.assigned_to_name ||
+        t.assigned_to_username ||
+        (t.assigned_to ? `User ${t.assigned_to}` : null);
 
     return {
         id: String(t.id),
@@ -77,13 +81,16 @@ const formatTicket = (t: any): Ticket => {
         stage: getStatusDisplay(t.status) as PipelineStage,
         priority: getPriorityDisplay(t.priority),
         createdDate: new Date(t.created_at).toLocaleDateString(),
-        assignedTo: t.assigned_to ? `User ${t.assigned_to}` : "Unassigned",
+        assignedTo: assignedToDisplay || "Unassigned",
+        insuranceType: t.insurance_type || t.insuranceType || "",
+        clientEmail: t.client_email || t.clientEmail || "",
         // Note: For typing to work flawlessly we map `id` to string in UI
     } as any;
 };
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { fetchAllPages } from "@/lib/api";
+import { normalizeListResponse } from "@/lib/normalize";
 
 const PipelineView = () => {
   const navigate = useNavigate();
@@ -99,8 +106,8 @@ const PipelineView = () => {
   });
 
   useEffect(() => {
-    const isArrayTickets = Array.isArray(ticketsData) ? ticketsData : [];
-    setLocalTickets(isArrayTickets.map(formatTicket));
+    const safeTickets = normalizeListResponse(ticketsData);
+    setLocalTickets(safeTickets.map(formatTicket));
   }, [ticketsData]);
 
   const updateTicketMutation = useMutation({

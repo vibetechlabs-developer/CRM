@@ -1,58 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { pipelineStages } from "@/lib/data";
+import { pipelineStages, formatBackendTicket, type BackendTicket } from "@/lib/data";
 import { FileText, Users, CheckCircle, AlertTriangle, TrendingUp, Clock, BarChart3, PieChart, ArrowUpRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartPie, Pie, Cell, LineChart, Line } from "recharts";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api, { fetchAllPages } from "@/lib/api";
+import { isFiniteNumber, normalizeListResponse } from "@/lib/normalize";
 
-const getTypeDisplay = (backendCode: string) => {
-    switch(backendCode) {
-        case "NEW": return "New Policy";
-        case "RENEWAL": return "Renewal";
-        case "ADJUSTMENT": return "Adjustment";
-        case "CANCELLATION": return "Cancellation";
-        default: return "Unknown";
-    }
-};
 
-const getStatusDisplay = (backendCode: string) => {
-    switch(backendCode) {
-        case "LEAD": return "Lead/Inquiry";
-        case "DOCS": return "Documents Pending";
-        case "PROCESSING": return "Processing";
-        case "COMPLETED": return "Completed";
-        case "DISCARDED": return "Discarded Leads";
-        default: return "Unknown Phase";
-    }
-};
-
-const getPriorityDisplay = (backendCode: string) => {
-      switch(backendCode) {
-          case "LOW": return "Low";
-          case "MEDIUM": return "Medium";
-          case "HIGH": return "High";
-          default: return "Medium";
-      }
-};
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const formatTicket = (t: any) => {
-    const { client_name = "", client_last_name = "" } = t;
-    const computedName = `${client_name} ${client_last_name}`.trim();
-
-    return {
-        id: t.id,
-        ticket_no: t.ticket_no,
-        clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
-        type: getTypeDisplay(t.ticket_type),
-        stage: getStatusDisplay(t.status),
-        priority: getPriorityDisplay(t.priority),
-        createdDate: new Date(t.created_at).toLocaleDateString(),
-    };
-};
 
 const Dashboard = () => {
-  const { data: rawTickets = [], isLoading: isLoadingTickets } = useQuery({
+  const { data: rawTickets, isLoading: isLoadingTickets } = useQuery({
       queryKey: ["tickets"],
       queryFn: async () => {
           return await fetchAllPages("/api/tickets/");
@@ -67,8 +25,8 @@ const Dashboard = () => {
       }
   });
 
-  const isArrayTickets = Array.isArray(rawTickets) ? rawTickets : [];
-  const tickets = isArrayTickets.map(formatTicket);
+  const safeRawTickets = normalizeListResponse<BackendTicket>(rawTickets);
+  const tickets = safeRawTickets.map((t) => formatBackendTicket(t));
   const clients = Array.isArray(clientsData) ? clientsData : [];
   const totalTickets = tickets.length;
   const totalClients = clients.length;
@@ -76,11 +34,68 @@ const Dashboard = () => {
   const highPriority = tickets.filter(t => t.priority === "High").length;
   const activeTickets = tickets.filter(t => t.stage !== "Completed" && t.stage !== "Discarded Leads").length;
 
+  const todayLabel = useMemo(() => {
+    try {
+      return new Date().toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const monthStats = useMemo(() => {
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const isInRange = (d: Date, start: Date, end: Date) => d >= start && d < end;
+
+    const createdDates = safeRawTickets
+      .map((t) => (t?.created_at ? new Date(t.created_at) : null))
+      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
+
+    const completedDates = safeRawTickets
+      .filter((t) => t?.status === "COMPLETED")
+      .map((t) => (t?.created_at ? new Date(t.created_at) : null))
+      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
+
+    const highPriorityDates = safeRawTickets
+      .filter((t) => t?.priority === "HIGH")
+      .map((t) => (t?.created_at ? new Date(t.created_at) : null))
+      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
+
+    const ticketsThisMonth = createdDates.filter((d) => isInRange(d, startOfThisMonth, startOfNextMonth)).length;
+    const ticketsPrevMonth = createdDates.filter((d) => isInRange(d, startOfPrevMonth, startOfThisMonth)).length;
+
+    const completedThisMonth = completedDates.filter((d) => isInRange(d, startOfThisMonth, startOfNextMonth)).length;
+    const completedPrevMonth = completedDates.filter((d) => isInRange(d, startOfPrevMonth, startOfThisMonth)).length;
+
+    const highThisMonth = highPriorityDates.filter((d) => isInRange(d, startOfThisMonth, startOfNextMonth)).length;
+    const highPrevMonth = highPriorityDates.filter((d) => isInRange(d, startOfPrevMonth, startOfThisMonth)).length;
+
+    const fmtDelta = (current: number, prev: number) => {
+      if (prev <= 0) {
+        if (current <= 0) return { label: "0%", positive: true };
+        return { label: "+100%", positive: true };
+      }
+      const pct = ((current - prev) / prev) * 100;
+      const rounded = Math.round(pct);
+      return { label: `${rounded >= 0 ? "+" : ""}${rounded}%`, positive: rounded >= 0 };
+    };
+
+    return {
+      ticketsDelta: fmtDelta(ticketsThisMonth, ticketsPrevMonth),
+      completedDelta: fmtDelta(completedThisMonth, completedPrevMonth),
+      highDelta: fmtDelta(highThisMonth, highPrevMonth),
+    };
+  }, [safeRawTickets]);
+
   const stats = [
-    { title: "Total Tickets", value: totalTickets, icon: FileText, color: "text-primary", bg: "bg-primary/10", change: "+12%", positive: true },
-    { title: "Total Clients", value: totalClients, icon: Users, color: "text-accent", bg: "bg-accent/10", change: "+8%", positive: true },
-    { title: "Completed", value: completedTickets, icon: CheckCircle, color: "text-success", bg: "bg-success/10", change: "+25%", positive: true },
-    { title: "High Priority", value: highPriority, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", change: "-5%", positive: false },
+    { title: "Total Tickets", value: totalTickets, icon: FileText, color: "text-primary", bg: "bg-primary/10", change: monthStats.ticketsDelta.label, positive: monthStats.ticketsDelta.positive },
+    // Client month-over-month requires client created_at which isn't guaranteed in all payloads; keep as neutral for now.
+    { title: "Total Clients", value: totalClients, icon: Users, color: "text-accent", bg: "bg-accent/10", change: "—", positive: true },
+    { title: "Completed", value: completedTickets, icon: CheckCircle, color: "text-success", bg: "bg-success/10", change: monthStats.completedDelta.label, positive: monthStats.completedDelta.positive },
+    { title: "High Priority", value: highPriority, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", change: monthStats.highDelta.label, positive: monthStats.highDelta.positive },
   ];
 
   const pipelineData = pipelineStages.map(stage => ({
@@ -101,16 +116,40 @@ const Dashboard = () => {
     { name: "Low", value: tickets.filter(t => t.priority === "Low").length, color: "hsl(152, 55%, 45%)" },
   ];
 
-  const monthlyTrend = [
-    { month: "Jan", tickets: 3, completed: 2 },
-    { month: "Feb", tickets: 5, completed: 4 },
-    { month: "Mar", tickets: 8, completed: 5 },
-    { month: "Apr", tickets: 6, completed: 4 },
-    { month: "May", tickets: 10, completed: 7 },
-    { month: "Jun", tickets: 8, completed: 6 },
-  ];
+  const monthlyTrend = useMemo(() => {
+    // Last 6 months (including current month), computed from backend `created_at`
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat(undefined, { month: "short" });
+
+    const buckets = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return {
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        month: fmt.format(d),
+        tickets: 0,
+        completed: 0,
+      };
+    });
+
+    const byKey = new Map(buckets.map((b) => [b.key, b]));
+
+    for (const t of safeRawTickets) {
+      if (!t?.created_at) continue;
+      const d = new Date(t.created_at);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const bucket = byKey.get(key);
+      if (!bucket) continue; // outside last 6 months
+      bucket.tickets += 1;
+      if (t.status === "COMPLETED") bucket.completed += 1;
+    }
+
+    return buckets;
+  }, [safeRawTickets]);
 
   const recentTickets = tickets.slice(0, 5);
+
+  const completionRate = totalTickets > 0 ? (completedTickets / totalTickets) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -120,7 +159,7 @@ const Dashboard = () => {
           <p className="text-muted-foreground text-sm mt-0.5">Overview of your insurance management system</p>
         </div>
         <div className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full border">
-          Mar 6, 2026
+          {todayLabel}
         </div>
       </div>
 
@@ -243,7 +282,13 @@ const Dashboard = () => {
                     <span className="font-semibold text-foreground">{p.value} tickets</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(p.value / totalTickets) * 100}%`, backgroundColor: p.color }} />
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${totalTickets > 0 ? (p.value / totalTickets) * 100 : 0}%`,
+                        backgroundColor: p.color,
+                      }}
+                    />
                   </div>
                 </div>
               ))}
@@ -255,7 +300,9 @@ const Dashboard = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Completion Rate</span>
-                <span className="font-semibold text-success">{((completedTickets / totalTickets) * 100).toFixed(0)}%</span>
+                <span className="font-semibold text-success">
+                  {isFiniteNumber(completionRate) ? completionRate.toFixed(0) : "0"}%
+                </span>
               </div>
             </div>
           </CardContent>

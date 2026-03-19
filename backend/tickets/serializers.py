@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Ticket, TicketActivity
+from users.models import User
+from .models import Ticket, TicketActivity, Note, Notification
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -23,8 +24,83 @@ class TicketSerializer(serializers.ModelSerializer):
             return full_name if full_name else obj.assigned_to.username
         return None
 
+    def update(self, instance, validated_data):
+        """
+        Add audit trail with user attribution for important field changes.
+        (Signals can't reliably capture request.user.)
+        """
+        request = self.context.get("request")
+        actor = getattr(request, "user", None) if request else None
+
+        old_status = instance.status
+        old_priority = instance.priority
+        old_assigned_to_id = instance.assigned_to_id
+
+        instance = super().update(instance, validated_data)
+
+        # Write activities (and notifications for ADMINs) only when we have an authenticated actor
+        if actor and getattr(actor, "is_authenticated", False):
+            if old_status != instance.status:
+                TicketActivity.objects.create(
+                    ticket=instance,
+                    user=actor,
+                    message=f"Status changed from {old_status} to {instance.status}.",
+                )
+                admin_ids = list(User.objects.filter(role="ADMIN").values_list("id", flat=True))
+                Notification.objects.bulk_create(
+                    [
+                        Notification(
+                            user_id=admin_id,
+                            ticket=instance,
+                            message=f"Ticket {instance.ticket_no} status: {old_status} → {instance.status}",
+                        )
+                        for admin_id in admin_ids
+                    ]
+                )
+
+            if old_priority != instance.priority:
+                TicketActivity.objects.create(
+                    ticket=instance,
+                    user=actor,
+                    message=f"Priority changed from {old_priority} to {instance.priority}.",
+                )
+
+            if old_assigned_to_id != instance.assigned_to_id:
+                old_user = User.objects.filter(id=old_assigned_to_id).first() if old_assigned_to_id else None
+                new_user = User.objects.filter(id=instance.assigned_to_id).first() if instance.assigned_to_id else None
+                TicketActivity.objects.create(
+                    ticket=instance,
+                    user=actor,
+                    message=f"Assignment changed from {(old_user.username if old_user else 'Unassigned')} to {(new_user.username if new_user else 'Unassigned')}.",
+                )
+                admin_ids = list(User.objects.filter(role="ADMIN").values_list("id", flat=True))
+                Notification.objects.bulk_create(
+                    [
+                        Notification(
+                            user_id=admin_id,
+                            ticket=instance,
+                            message=f"Ticket {instance.ticket_no} reassigned.",
+                        )
+                        for admin_id in admin_ids
+                    ]
+                )
+
+        return instance
+
 
 class TicketActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketActivity
         fields = '__all__'
+
+
+class NoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Note
+        fields = "__all__"
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = "__all__"

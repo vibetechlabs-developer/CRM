@@ -12,17 +12,19 @@ import Tickets from "./pages/Tickets";
 import NewTicket from "./pages/NewTicket";
 import UserControl from "./pages/UserControl";
 import SettingsPage from "./pages/SettingsPage";
+import MyProfile from "./pages/MyProfile";
 import DiscardedLeads from "./pages/DiscardedLeads";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import InsuranceForm from "./pages/InsuranceForm";
 import InsuranceFormManual from "./pages/InsuranceFormManual";
+import Notifications from "./pages/Notifications";
 import ScrollToTop from "./components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   if (!isLoggedIn) return <Navigate to="/login" replace />;
 
   return (
@@ -35,8 +37,10 @@ function ProtectedRoutes() {
         <Route path="/new-ticket" element={<NewTicket />} />
         <Route path="/insurance-form/manual" element={<InsuranceFormManual />} />
         <Route path="/discarded-leads" element={<DiscardedLeads />} />
-        <Route path="/user-control" element={<UserControl />} />
+        <Route path="/notifications" element={<Notifications />} />
+        {user?.role === "ADMIN" && <Route path="/user-control" element={<UserControl />} />}
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/profile" element={<MyProfile />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>

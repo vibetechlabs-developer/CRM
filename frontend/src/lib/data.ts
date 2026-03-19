@@ -26,6 +26,7 @@ export interface Client {
 
 export interface Ticket {
   id: string;
+  ticket_no?: string;
   clientName: string;
   clientEmail: string;
   type: RequestType;
@@ -36,6 +37,170 @@ export interface Ticket {
   createdDate: string;
   notes?: string;
 }
+
+// ===== Backend ticket DTO + UI ticket model (used by Tickets page) =====
+
+export type TicketTypeCode = "NEW" | "RENEWAL" | "ADJUSTMENT" | "CANCELLATION" | (string & {});
+export type TicketStatusCode = "LEAD" | "DOCS" | "PROCESSING" | "COMPLETED" | "DISCARDED" | (string & {});
+export type TicketPriorityCode = "LOW" | "MEDIUM" | "HIGH" | (string & {});
+
+export interface BackendUser {
+  id: number;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  role?: string;
+}
+
+export interface BackendTicketNote {
+  id: number;
+  content: string;
+  created_at: string;
+}
+
+export interface BackendTicket {
+  id: number;
+  ticket_no: string;
+  client?: number;
+  client_name?: string;
+  client_last_name?: string;
+  client_email?: string;
+  ticket_type: TicketTypeCode;
+  insurance_type?: string;
+  status: TicketStatusCode;
+  priority: TicketPriorityCode;
+  assigned_to?: number | BackendUser | null;
+  assigned_to_name?: string;
+  assigned_to_username?: string;
+  created_at: string;
+}
+
+export interface TicketRow {
+  id: number;
+  ticket_no: string;
+  clientName: string;
+  clientEmail: string;
+  type: RequestType | string;
+  insuranceType: string;
+  stage: PipelineStage | string;
+  priority: Priority | string;
+  assignedTo: string;
+  assignedToId: number | null;
+  createdDate: string;
+}
+
+export const getTypeDisplay = (typeCode: TicketTypeCode): RequestType | string => {
+  switch (typeCode) {
+    case "NEW":
+      return "New Policy";
+    case "RENEWAL":
+      return "Renewal";
+    case "ADJUSTMENT":
+      return "Adjustment";
+    case "CANCELLATION":
+      return "Cancellation";
+    default:
+      return typeCode;
+  }
+};
+
+export const getStatusDisplay = (statusCode: TicketStatusCode): PipelineStage | string => {
+  switch (statusCode) {
+    case "LEAD":
+      return "Lead/Inquiry";
+    case "DOCS":
+      return "Document Collection";
+    case "PROCESSING":
+      return "Processing";
+    case "COMPLETED":
+      return "Completed";
+    case "DISCARDED":
+      return "Discarded Leads";
+    default:
+      return statusCode;
+  }
+};
+
+export const getStatusBackendCode = (statusDisplay: PipelineStage | string): TicketStatusCode => {
+  switch (statusDisplay) {
+    case "Lead/Inquiry":
+      return "LEAD";
+    case "Document Collection":
+      return "DOCS";
+    case "Processing":
+      return "PROCESSING";
+    case "Completed":
+      return "COMPLETED";
+    case "Discarded Leads":
+      return "DISCARDED";
+    default:
+      return "LEAD";
+  }
+};
+
+export const getPriorityDisplay = (priorityCode: TicketPriorityCode): Priority | string => {
+  switch (priorityCode) {
+    case "LOW":
+      return "Low";
+    case "MEDIUM":
+      return "Medium";
+    case "HIGH":
+      return "High";
+    default:
+      return "Medium";
+  }
+};
+
+export const getPriorityBackendCode = (priorityDisplay: Priority | string): TicketPriorityCode => {
+  switch (priorityDisplay) {
+    case "Low":
+      return "LOW";
+    case "Medium":
+      return "MEDIUM";
+    case "High":
+      return "HIGH";
+    default:
+      return "MEDIUM";
+  }
+};
+
+export const formatBackendTicket = (t: BackendTicket): TicketRow => {
+  const { client_name = "", client_last_name = "" } = t;
+  const computedName = `${client_name} ${client_last_name}`.trim();
+
+  // Get agent name - prefer assigned_to_name, fallback to assigned_to_username, then "Unassigned"
+  let assignedToDisplay = "Unassigned";
+  if (t.assigned_to_name) {
+    assignedToDisplay = t.assigned_to_name;
+  } else if (t.assigned_to_username) {
+    assignedToDisplay = t.assigned_to_username;
+  } else if (t.assigned_to) {
+    assignedToDisplay =
+      typeof t.assigned_to === "object"
+        ? t.assigned_to.username || "Unknown"
+        : `User ${t.assigned_to}`;
+  }
+
+  const assignedToId =
+    typeof t.assigned_to === "number"
+      ? t.assigned_to
+      : (t.assigned_to?.id ?? null);
+
+  return {
+    id: t.id,
+    ticket_no: t.ticket_no,
+    clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
+    clientEmail: t.client_email || "N/A",
+    type: getTypeDisplay(t.ticket_type),
+    insuranceType: t.insurance_type || "",
+    stage: getStatusDisplay(t.status),
+    priority: getPriorityDisplay(t.priority),
+    assignedTo: assignedToDisplay,
+    assignedToId,
+    createdDate: new Date(t.created_at).toLocaleDateString(),
+  };
+};
 
 export interface User {
   id: string;

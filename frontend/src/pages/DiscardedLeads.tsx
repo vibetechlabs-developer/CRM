@@ -3,6 +3,7 @@ import api, { fetchAllPages } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { normalizeListResponse } from "@/lib/normalize";
 
 const getTypeDisplay = (backendCode: string) => {
     switch(backendCode) {
@@ -49,7 +50,7 @@ export default function DiscardedLeads() {
         }
     });
 
-    const discardedTickets = (data || []).map(formatTicket);
+    const discardedTickets = normalizeListResponse(data).map(formatTicket);
 
     return (
         <div className="space-y-6 h-full flex flex-col max-w-[1200px] mx-auto w-full">

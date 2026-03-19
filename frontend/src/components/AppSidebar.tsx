@@ -1,12 +1,11 @@
-import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, LogOut, Ban, ArchiveX, FileEdit } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const overviewItems = [
@@ -22,6 +21,7 @@ const managementItems = [
 ];
 
 const systemItems = [
+  { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "User Control", url: "/user-control", icon: UserCog },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
@@ -30,14 +30,8 @@ export function AppSidebar() {
   const { state, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const isActive = (path: string) => location.pathname === path;
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
 
   const renderGroup = (label: string, items: typeof overviewItems) => (
     <SidebarGroup>
@@ -102,34 +96,11 @@ export function AppSidebar() {
       <SidebarContent className="px-2">
         {renderGroup("Overview", overviewItems)}
         {renderGroup("Management", managementItems)}
-        {renderGroup("System", systemItems)}
-      </SidebarContent>
-
-      <SidebarFooter className="p-3 border-t border-sidebar-border">
-        <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
-              {user?.name?.[0]?.toUpperCase() || "A"}
-            </AvatarFallback>
-          </Avatar>
-          {!collapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-sidebar-accent-foreground truncate">{user?.name || "Admin"}</p>
-                <p className="text-xs text-sidebar-foreground/50">{user?.role || "Admin"}</p>
-              </div>
-              <button onClick={handleLogout} title="Logout">
-                <LogOut className="h-4 w-4 text-sidebar-foreground/50 cursor-pointer hover:text-sidebar-accent-foreground transition-colors" />
-              </button>
-            </>
-          )}
-        </div>
-        {collapsed && (
-          <button onClick={handleLogout} title="Logout" className="flex justify-center mt-2">
-            <LogOut className="h-4 w-4 text-sidebar-foreground/50 cursor-pointer hover:text-sidebar-accent-foreground transition-colors" />
-          </button>
+        {renderGroup(
+          "System",
+          (user?.role === "ADMIN" ? systemItems : systemItems.filter((i) => i.url !== "/user-control")) as typeof overviewItems
         )}
-      </SidebarFooter>
+      </SidebarContent>
     </Sidebar>
   );
 }

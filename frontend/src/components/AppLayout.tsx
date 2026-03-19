@@ -17,6 +17,10 @@ function MainContent({ children }: { children: React.ReactNode }) {
     navigate("/login");
   };
 
+  const handleMyProfile = () => {
+    navigate("/profile");
+  };
+
   return (
     <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${collapsed ? "ml-0" : ""}`}>
       <header className="h-14 flex items-center justify-between border-b bg-card px-4 shrink-0 gap-4">
@@ -41,6 +45,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleMyProfile}>My Profile</DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

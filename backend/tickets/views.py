@@ -3,16 +3,24 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Q
 
-from .models import Ticket, TicketActivity
-from .serializers import TicketSerializer, TicketActivitySerializer
+from users.models import User
+from common.permissions import IsAdminOrAssignedAgent, IsAdminRole
+from .models import Ticket, TicketActivity, Note, Notification
+from .serializers import (
+    TicketSerializer,
+    TicketActivitySerializer,
+    NoteSerializer,
+    NotificationSerializer,
+)
 from .services import auto_assign_ticket
 
 
 class TicketViewSet(ModelViewSet):
 
-    queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
+    permission_classes = [IsAuthenticated]
 
     filter_backends = [DjangoFilterBackend]
 
@@ -27,9 +35,55 @@ class TicketViewSet(ModelViewSet):
 
     # Permission control
     def get_permissions(self):
-        if self.action == 'create':
-            return [AllowAny()]
+        # Ticket creation should be authenticated; public creation happens via /api/insurance-form/
+        if self.action == "create":
+            return [IsAuthenticated()]
         return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
+        if getattr(user, "role", None) == "ADMIN":
+            return qs
+        # AGENT: only their assigned tickets
+        return qs.filter(assigned_to=user)
+
+    def perform_create(self, serializer):
+        """
+        Create ticket and enforce assignment rules:
+        - If AGENT creates: assign to self
+        - If ADMIN creates:
+            - For RENEWAL/ADJUSTMENT/CANCELLATION: try continuity assignment (same previous agent)
+            - Else fallback to auto-assign
+        """
+        user = self.request.user
+        role = getattr(user, "role", None)
+
+        ticket = serializer.save()
+
+        if role == "AGENT":
+            if not ticket.assigned_to_id:
+                ticket.assigned_to = user
+                ticket.save(update_fields=["assigned_to"])
+            return
+
+        # ADMIN flow: continuity assignment for non-NEW types
+        if ticket.ticket_type in ["RENEWAL", "ADJUSTMENT", "CANCELLATION"] and not ticket.assigned_to_id:
+            previous = (
+                Ticket.objects.filter(client=ticket.client, assigned_to__isnull=False)
+                .exclude(id=ticket.id)
+                .order_by("-created_at")
+                .first()
+            )
+            if previous and previous.assigned_to_id:
+                ticket.assigned_to_id = previous.assigned_to_id
+                ticket.save(update_fields=["assigned_to"])
+            else:
+                auto_assign_ticket(ticket)
+
+        # NEW tickets: auto-assign if unassigned (signal also does this, but keep deterministic here)
+        if ticket.ticket_type == "NEW" and not ticket.assigned_to_id:
+            auto_assign_ticket(ticket)
 
     # Custom API: Change Ticket Status
     @action(detail=True, methods=['post'])
@@ -45,7 +99,8 @@ class TicketViewSet(ModelViewSet):
             )
 
         ticket.status = new_status
-        ticket.save()
+        ticket.save()  # serializer.update will add user-attributed activity when patched via PATCH; here signal won't, so log explicitly
+        TicketActivity.objects.create(ticket=ticket, user=request.user, message=f"Status changed to {new_status}.")
 
         return Response({
             "message": "Ticket status updated successfully",
@@ -68,6 +123,26 @@ class TicketViewSet(ModelViewSet):
         )
 
         return Response(serializer.data)
+
+    # Notes
+    @action(detail=True, methods=["get", "post"])
+    def notes(self, request, pk=None):
+        ticket = self.get_object()
+
+        # ADMIN can see all; AGENT only assigned (already enforced by get_queryset)
+        if request.method == "GET":
+            notes = Note.objects.filter(ticket=ticket).order_by("-created_at")
+            return Response(NoteSerializer(notes, many=True).data)
+
+        # POST: create note
+        payload = request.data.copy()
+        payload["ticket"] = ticket.id
+        payload["agent"] = request.user.id
+        ser = NoteSerializer(data=payload)
+        ser.is_valid(raise_exception=True)
+        note = ser.save()
+        TicketActivity.objects.create(ticket=ticket, user=request.user, message="Note added.")
+        return Response(NoteSerializer(note).data, status=201)
 
     # Custom API: Auto-assign a specific ticket
     @action(detail=True, methods=['post'])
@@ -118,3 +193,20 @@ class TicketViewSet(ModelViewSet):
             "failed": failed_count,
             "total_processed": unassigned_tickets.count()
         })
+
+
+class NotificationViewSet(ModelViewSet):
+    """
+    In-app notifications API (polling-based "real-time").
+    """
+
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=["post"])
+    def mark_all_read(self, request):
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({"success": True})

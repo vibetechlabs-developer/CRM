@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 db.sqlite3
 crm_policy_db/
+.env
+backend/.env
+backend/.env
 
 # Frontend
 crm/node_modules/

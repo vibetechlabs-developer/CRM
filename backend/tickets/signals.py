@@ -1,6 +1,7 @@
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Ticket, TicketActivity
+from users.models import User
+from .models import Ticket, TicketActivity, Notification
 from .services import auto_assign_ticket
 
 
@@ -28,29 +29,15 @@ def handle_ticket_created(sender, instance, created, **kwargs):
         if not instance.assigned_to:
             auto_assign_ticket(instance)
 
-
-
-# -----------------------------------------
-# PRE SAVE SIGNAL
-# Runs BEFORE ticket is saved
-# Used for detecting status changes
-# -----------------------------------------
-
-@receiver(pre_save, sender=Ticket)
-def track_ticket_status_change(sender, instance, **kwargs):
-
-    # If ticket already exists in database
-    if instance.pk:
-
-        try:
-            old_ticket = Ticket.objects.get(pk=instance.pk)
-        except Ticket.DoesNotExist:
-            return
-
-        # Check if status changed
-        if old_ticket.status != instance.status:
-
-            TicketActivity.objects.create(
-                ticket=instance,
-                message=f"Status changed from {old_ticket.status} to {instance.status}."
-            )
+        # Notify all admins
+        admin_ids = list(User.objects.filter(role="ADMIN").values_list("id", flat=True))
+        Notification.objects.bulk_create(
+            [
+                Notification(
+                    user_id=admin_id,
+                    ticket=instance,
+                    message=f"New ticket created: {instance.ticket_no}",
+                )
+                for admin_id in admin_ids
+            ]
+        )

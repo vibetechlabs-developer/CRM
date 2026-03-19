@@ -10,22 +10,59 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+try:
+    # Optional in dev; required in environments where you want `.env` support.
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv(BASE_DIR / ".env")
+except Exception:
+    # If python-dotenv isn't installed, we still allow config via real env vars.
+    pass
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+
+
+def _env_list(name: str, default: list[str] | None = None) -> list[str]:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default or []
+    # comma-separated, ignoring blanks
+    return [v.strip() for v in raw.split(",") if v.strip()]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6lvoytgj5qq#8n7j(y44k*$do7d!jmxh^5e4_jk%$b6zv_(@8='
+DJANGO_ENV = os.environ.get("DJANGO_ENV", "development").strip().lower()
+IS_PRODUCTION = DJANGO_ENV == "production"
+DEBUG = _env_bool("DJANGO_DEBUG", default=(not IS_PRODUCTION))
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if not IS_PRODUCTION:
+        # Dev-only fallback. In production you must set DJANGO_SECRET_KEY.
+        SECRET_KEY = "django-insecure-change-me"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
 
-ALLOWED_HOSTS = []
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY is not set")
+
+ALLOWED_HOSTS = _env_list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=(["localhost", "127.0.0.1"] if DEBUG else []),
+)
 
 
 # Application definition
@@ -80,7 +117,7 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "api.authentication.CookieJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
@@ -95,11 +132,11 @@ REST_FRAMEWORK = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'crm_policy_db',      
-        'USER': 'crm_user',           
-        'PASSWORD': 'Abcd@1234',  
-        'HOST': 'localhost',          
-        'PORT': '5432',               
+        'NAME': os.environ.get("POSTGRES_DB", "crm_policy_db"),
+        'USER': os.environ.get("POSTGRES_USER", "crm_user"),
+        'PASSWORD': os.environ.get("POSTGRES_PASSWORD", ""),
+        'HOST': os.environ.get("POSTGRES_HOST", "localhost"),
+        'PORT': os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -141,8 +178,60 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-CORS_ALLOW_ALL_ORIGINS = True
+# Production-safe defaults: locked down unless explicitly enabled.
+CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL_ORIGINS", default=DEBUG)
+CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_CREDENTIALS = _env_bool("CORS_ALLOW_CREDENTIALS", default=True)
+
+# If credentials are allowed, you cannot use wildcard origins ("*") in browsers.
+# In dev, default to common Vite ports if no explicit origins are configured.
+if CORS_ALLOW_CREDENTIALS and CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOW_ALL_ORIGINS = False
+    if DEBUG and not CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:8080",
+        ]
+
+# Auth cookies (JWT stored in HttpOnly cookies)
+AUTH_ACCESS_COOKIE_NAME = os.environ.get("AUTH_ACCESS_COOKIE_NAME", "access_token")
+AUTH_REFRESH_COOKIE_NAME = os.environ.get("AUTH_REFRESH_COOKIE_NAME", "refresh_token")
+AUTH_ACCESS_COOKIE_MAX_AGE = int(os.environ.get("AUTH_ACCESS_COOKIE_MAX_AGE", str(60 * 15)))  # 15 minutes
+AUTH_REFRESH_COOKIE_MAX_AGE = int(os.environ.get("AUTH_REFRESH_COOKIE_MAX_AGE", str(60 * 60 * 24 * 7)))  # 7 days
+AUTH_COOKIE_SAMESITE = os.environ.get("AUTH_COOKIE_SAMESITE", "Lax")  # "None" for cross-site SPA
+AUTH_COOKIE_SECURE = _env_bool("AUTH_COOKIE_SECURE", default=IS_PRODUCTION)
+AUTH_COOKIE_DOMAIN = os.environ.get("AUTH_COOKIE_DOMAIN") or None
+
+# If running the frontend on a different origin, you'll likely need:
+# - CORS_ALLOWED_ORIGINS / CORS_ALLOW_ALL_ORIGINS configured
+# - AUTH_COOKIE_SAMESITE="None" and AUTH_COOKIE_SECURE=true (HTTPS)
 
 AUTH_USER_MODEL = "users.User"
+
+# Security / HTTPS (mostly production defaults)
+#
+# These are intentionally conservative: in production we assume HTTPS and lock down cookies/headers,
+# while keeping local development friction low.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if IS_PRODUCTION else None
+SECURE_SSL_REDIRECT = _env_bool("DJANGO_SECURE_SSL_REDIRECT", default=IS_PRODUCTION)
+SESSION_COOKIE_SECURE = _env_bool("DJANGO_SESSION_COOKIE_SECURE", default=IS_PRODUCTION)
+CSRF_COOKIE_SECURE = _env_bool("DJANGO_CSRF_COOKIE_SECURE", default=IS_PRODUCTION)
+
+# Trust CSRF origins for cross-origin SPAs (must include scheme, e.g. https://app.example.com)
+CSRF_TRUSTED_ORIGINS = _env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
+
+# HSTS (only meaningful on HTTPS). Enable by default in production, but allow override via env.
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0" if not IS_PRODUCTION else "31536000"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", default=IS_PRODUCTION)
+SECURE_HSTS_PRELOAD = _env_bool("DJANGO_SECURE_HSTS_PRELOAD", default=False)
+
+# Basic hardening headers
+SECURE_REFERRER_POLICY = os.environ.get("DJANGO_SECURE_REFERRER_POLICY", "same-origin")
+SECURE_CONTENT_TYPE_NOSNIFF = _env_bool("DJANGO_SECURE_CONTENT_TYPE_NOSNIFF", default=True)
+X_FRAME_OPTIONS = os.environ.get("DJANGO_X_FRAME_OPTIONS", "DENY")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

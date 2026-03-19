@@ -10,9 +10,8 @@ import api from "@/lib/api";
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  // const [email, setEmail] = useState("admin@gmail.com");
-  const [username, setUsername] = useState("Nishita");
-  const [password, setPassword] = useState("Abcd@1234");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -22,22 +21,27 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await api.post("/api/auth/login/", {
+      await api.post("/api/auth/login/", {
         username: username, 
         password: password,
       });
 
-      const data = response.data;
+      // Load current user details (role-aware UI)
+      const me = await api.get("/api/users/me/");
+      const u = me.data;
 
-      localStorage.setItem("access_token", data.access);
-      localStorage.setItem("refresh_token", data.refresh);
-
-      
-      login(data.access);
+      login({
+        id: u.id,
+        username: u.username,
+        name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username,
+        email: u.email,
+        role: u.role,
+      });
 
       
       navigate("/");
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as any;
       setError(err.response?.data?.detail || err.response?.data?.error || err.message || "Something went wrong");
     } finally {
       setIsLoading(false);

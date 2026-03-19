@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,18 +9,42 @@ import { Search, Plus, Mail, Phone, MapPin, Edit2, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { toast } from "@/hooks/use-toast";
 import type { Client } from "@/lib/data";
+
+function getApiErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as any;
+    if (typeof data === "string" && data.trim()) return data;
+    if (data?.detail && typeof data.detail === "string") return data.detail;
+    if (data?.message && typeof data.message === "string") return data.message;
+    if (error.message) return error.message;
+    return "Request failed";
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Something went wrong";
+}
+
+function useDebouncedValue<T>(value: T, delayMs = 250) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(handle);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 const Clients = () => {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["clients", search],
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["clients", debouncedSearch],
     queryFn: async () => {
       // Backend is mounted under /api/, and DRF router registers 'clients' there -> /api/clients/
       const response = await api.get("/api/clients/", {
-        params: search ? { search } : undefined,
+        params: debouncedSearch ? { search: debouncedSearch } : undefined,
       });
 
       // Support both plain list responses and paginated `{ results: [...] }` responses
@@ -74,9 +99,22 @@ const Clients = () => {
 
       return normalized;
     },
+    staleTime: 30_000,
   });
 
-  const [clientList, setClientList] = useState<Client[]>([]);
+  const lastLoadErrorRef = useRef<string>("");
+  useEffect(() => {
+    if (!isError) return;
+    const msg = getApiErrorMessage(error);
+    if (!msg || msg === lastLoadErrorRef.current) return;
+    lastLoadErrorRef.current = msg;
+    toast({
+      title: "Failed to load clients",
+      description: msg,
+      variant: "destructive",
+    });
+  }, [isError, error]);
+
   const [showAdd, setShowAdd] = useState(false);
   const [newClient, setNewClient] = useState({
     first_name: "",
@@ -96,15 +134,7 @@ const Clients = () => {
     address: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (Array.isArray(data)) {
-      setClientList(data);
-    } else {
-      setClientList([]);
-    }
-  }, [data]);
-
-  const filtered: Client[] = Array.isArray(clientList) ? clientList : [];
+  const clients: Client[] = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
   const getInitials = (name?: string | null) => {
     if (!name || typeof name !== "string") {
@@ -134,7 +164,7 @@ const Clients = () => {
     },
     onSuccess: () => {
       // Refresh clients list after successful creation
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"], exact: false });
       setShowAdd(false);
       setNewClient({
         first_name: "",
@@ -142,6 +172,14 @@ const Clients = () => {
         email: "",
         phone: "",
         address: "",
+      });
+      toast({ title: "Client added", description: "The client was created successfully." });
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to add client",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
       });
     },
   });
@@ -170,7 +208,9 @@ const Clients = () => {
 
   const updateClientMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedClient || !editClient) return;
+      if (!selectedClient || !editClient) {
+        throw new Error("No client selected for update");
+      }
       const payload = {
         first_name: editClient.first_name,
         last_name: editClient.last_name,
@@ -182,10 +222,18 @@ const Clients = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"], exact: false });
       setActionType(null);
       setSelectedClient(null);
       setEditClient(null);
+      toast({ title: "Client updated", description: "Your changes were saved." });
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to update client",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
     },
   });
   return (
@@ -303,7 +351,7 @@ const Clients = () => {
           <span className="font-medium text-destructive">Error loading clients</span>
         ) : (
           <>
-            <span className="font-medium text-foreground">{filtered.length}</span> clients found
+            <span className="font-medium text-foreground">{clients.length}</span> clients found
           </>
         )}
       </div>
@@ -322,7 +370,7 @@ const Clients = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((client) => (
+              {clients.map((client) => (
                 <tr key={client.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
@@ -373,7 +421,7 @@ const Clients = () => {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {clients.length === 0 && (
                 <tr><td colSpan={6} className="p-10 text-center text-muted-foreground text-sm">No clients found</td></tr>
               )}
             </tbody>

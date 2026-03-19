@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { KeyRound, ShieldAlert, ShieldCheck, Mail, Edit2, Trash2, Plus, AlertCircle } from "lucide-react";
@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatUser = (user: any) => ({
@@ -22,6 +23,7 @@ const formatUser = (user: any) => ({
 });
 
 const UserControl = () => {
+  const queryClient = useQueryClient();
   const { data: usersData = [], isLoading } = useQuery({
       queryKey: ["users"],
       queryFn: async () => {
@@ -35,6 +37,49 @@ const UserControl = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionType, setActionType] = useState<"edit" | "access" | "delete" | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const [newUser, setNewUser] = useState({
+    username: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    role: "AGENT" as "ADMIN" | "AGENT",
+    password: "",
+  });
+
+  const canSubmitNewUser = useMemo(() => {
+    return Boolean(newUser.username.trim() && newUser.email.trim() && newUser.password.trim());
+  }, [newUser]);
+
+  const createUserMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        username: newUser.username.trim(),
+        first_name: newUser.first_name.trim(),
+        last_name: newUser.last_name.trim(),
+        email: newUser.email.trim(),
+        role: newUser.role,
+        password: newUser.password,
+      };
+      const res = await api.post("/api/users/", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("User created");
+      setIsAddOpen(false);
+      setNewUser({ username: "", first_name: "", last_name: "", email: "", role: "AGENT", password: "" });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.username?.[0] ||
+        err?.response?.data?.email?.[0] ||
+        "Failed to create user";
+      toast.error(msg);
+    },
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const openAction = (user: any, type: "edit" | "access" | "delete") => {
@@ -49,10 +94,7 @@ const UserControl = () => {
           <h1 className="text-2xl font-bold">User Management</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Manage system access, roles, and permissions</p>
         </div>
-        <Button className="gap-2 shrink-0" onClick={() => {
-          // Dummy redirect logic
-          console.log("Redirecting to add user page...");
-        }}>
+        <Button className="gap-2 shrink-0" onClick={() => setIsAddOpen(true)}>
           <Plus className="h-4 w-4" /> Add User
         </Button>
       </div>
@@ -270,6 +312,77 @@ const UserControl = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add User Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Add User</DialogTitle>
+            <DialogDescription>Create a new agent/admin account.</DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">First name</Label>
+                <Input value={newUser.first_name} onChange={(e) => setNewUser(s => ({ ...s, first_name: e.target.value }))} placeholder="First name" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Last name</Label>
+                <Input value={newUser.last_name} onChange={(e) => setNewUser(s => ({ ...s, last_name: e.target.value }))} placeholder="Last name" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Username</Label>
+              <Input value={newUser.username} onChange={(e) => setNewUser(s => ({ ...s, username: e.target.value }))} placeholder="e.g. agent.john" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Email</Label>
+              <Input value={newUser.email} onChange={(e) => setNewUser(s => ({ ...s, email: e.target.value }))} placeholder="name@company.com" type="email" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Role</Label>
+              <Select
+                value={newUser.role}
+                onValueChange={(v) => setNewUser(s => ({ ...s, role: v as "ADMIN" | "AGENT" }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AGENT">Agent</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Temporary password</Label>
+              <Input value={newUser.password} onChange={(e) => setNewUser(s => ({ ...s, password: e.target.value }))} placeholder="Set a password" type="password" />
+              <p className="text-xs text-muted-foreground">User can change it later (if you expose password reset/change flow).</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddOpen(false)}
+              disabled={createUserMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createUserMutation.mutate()}
+              disabled={!canSubmitNewUser || createUserMutation.isPending}
+            >
+              {createUserMutation.isPending ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

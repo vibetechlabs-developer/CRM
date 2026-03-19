@@ -14,6 +14,12 @@ interface PipelineCardProps {
   ticket: Ticket;
 }
 
+const priorityColors: Record<string, string> = {
+  High: "bg-destructive/10 text-destructive border-destructive/20",
+  Medium: "bg-warning/10 text-warning border-warning/20",
+  Low: "bg-success/10 text-success border-success/20",
+};
+
 const typeColors: Record<string, string> = {
   "New Policy": "text-primary border-primary/30 bg-primary/5",
   "Renewal": "text-accent border-accent/30 bg-accent/5",
@@ -59,12 +65,9 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
         <div className="flex items-start justify-between mb-2 relative z-20">
           <div className="flex flex-col">
             <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-md w-fit mb-1.5">
-              #{String((ticket as any).ticket_no || ticket.id).split("-")[1] || String((ticket as any).ticket_no || ticket.id)}
+              #{String(ticket.ticket_no || ticket.id).split("-")[1] || String(ticket.ticket_no || ticket.id)}
             </span>
-            <span className={`text-[9px] uppercase px-2 py-0.5 rounded border font-bold tracking-wider w-fit ${ticket.priority === "High" ? "bg-destructive/10 text-destructive border-destructive/20" :
-              ticket.priority === "Medium" ? "bg-warning/10 text-warning border-warning/20" :
-                "bg-success/10 text-success border-success/20"
-              }`}>
+            <span className={`text-[9px] uppercase px-2 py-0.5 rounded border font-bold tracking-wider w-fit ${priorityColors[ticket.priority] || priorityColors.Medium}`}>
               {ticket.priority}
             </span>
           </div>

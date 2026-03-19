@@ -8,7 +8,6 @@ from .serializers import ClientSerializer
 
 class ClientViewSet(ModelViewSet):
 
-    queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated]
 
@@ -20,3 +19,11 @@ class ClientViewSet(ModelViewSet):
         "email",
         "phone",
     ]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Client.objects.all()
+        if getattr(user, "role", None) == "ADMIN":
+            return qs
+        # AGENT: only clients that have at least one ticket assigned to this agent
+        return qs.filter(tickets__assigned_to=user).distinct()

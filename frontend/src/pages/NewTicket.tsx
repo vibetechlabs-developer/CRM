@@ -12,11 +12,11 @@ import { ArrowLeft, FileText, RefreshCw, SlidersHorizontal, Search, Info } from 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RequestType, Priority } from "@/lib/data";
 
-// Cancellation has been moved to its own dedicated page (/cancellations)
 const requestTypes = [
   { type: "New Policy" as RequestType, description: "Submit a new insurance quote request", icon: FileText, color: "text-primary", bg: "bg-primary/10 border-primary/20" },
   { type: "Renewal" as RequestType, description: "Renew an existing policy", icon: RefreshCw, color: "text-accent", bg: "bg-accent/10 border-accent/20" },
   { type: "Adjustment" as RequestType, description: "Update or modify policy details", icon: SlidersHorizontal, color: "text-purple-500", bg: "bg-purple-500/10 border-purple-500/20" },
+  { type: "Cancellation" as RequestType, description: "Cancel an existing policy", icon: SlidersHorizontal, color: "text-destructive", bg: "bg-destructive/10 border-destructive/20" },
 ];
 
 const NewTicket = () => {
