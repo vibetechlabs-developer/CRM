@@ -413,6 +413,17 @@ const Tickets = () => {
             data: { assigned_to: assignedToId },
           })
         }
+        onSaveEdit={({ id, status, priority, insuranceType, assignedToId }) =>
+          updateTicketMutation.mutate({
+            id,
+            data: {
+              status: getStatusBackendCode(status),
+              priority: getPriorityBackendCode(priority),
+              insurance_type: insuranceType,
+              ...(user?.role === "ADMIN" ? { assigned_to: assignedToId } : {}),
+            },
+          })
+        }
         isSaving={updateTicketMutation.isPending}
         onDiscard={handleDiscard}
         isDiscarding={updateTicketMutation.isPending}

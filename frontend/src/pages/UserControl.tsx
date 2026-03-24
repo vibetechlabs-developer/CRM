@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -50,9 +50,19 @@ const UserControl = () => {
     role: "AGENT" as "ADMIN" | "AGENT" | "MANAGER",
     password: "",
   });
+  const [editForm, setEditForm] = useState({
+    fullName: "",
+    email: "",
+    role: "Agent" as "Admin" | "Manager" | "Agent",
+  });
 
   const canSubmitNewUser = useMemo(() => {
-    return Boolean(newUser.username.trim() && newUser.email.trim() && newUser.password.trim());
+    return Boolean(
+      newUser.username.trim() &&
+      newUser.email.trim() &&
+      newUser.password.trim() &&
+      newUser.password.length >= 8
+    );
   }, [newUser]);
 
   const createUserMutation = useMutation({
@@ -77,9 +87,43 @@ const UserControl = () => {
     onError: (err: any) => {
       const msg =
         err?.response?.data?.detail ||
+        err?.response?.data?.password?.[0] ||
         err?.response?.data?.username?.[0] ||
         err?.response?.data?.email?.[0] ||
         "Failed to create user";
+      toast.error(msg);
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) return;
+      const [firstName, ...rest] = editForm.fullName.trim().split(/\s+/);
+      const roleCode =
+        editForm.role === "Admin"
+          ? "ADMIN"
+          : editForm.role === "Manager"
+            ? "MANAGER"
+            : "AGENT";
+      const payload = {
+        first_name: firstName || "",
+        last_name: rest.join(" "),
+        email: editForm.email.trim(),
+        role: roleCode,
+      };
+      const res = await api.patch(`/api/users/${selectedUser.id}/`, payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("User updated");
+      setActionType(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.email?.[0] ||
+        "Failed to update user";
       toast.error(msg);
     },
   });
@@ -89,6 +133,15 @@ const UserControl = () => {
     setSelectedUser(user);
     setActionType(type);
   };
+
+  useEffect(() => {
+    if (!selectedUser || actionType !== "edit") return;
+    setEditForm({
+      fullName: selectedUser.name || "",
+      email: selectedUser.email || "",
+      role: (selectedUser.role || "Agent") as "Admin" | "Manager" | "Agent",
+    });
+  }, [selectedUser, actionType]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -247,15 +300,24 @@ const UserControl = () => {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Full Name</Label>
-                    <Input defaultValue={selectedUser.name} placeholder="Enter full name" />
+                    <Input
+                      value={editForm.fullName}
+                      onChange={(e) => setEditForm((s) => ({ ...s, fullName: e.target.value }))}
+                      placeholder="Enter full name"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Email</Label>
-                    <Input defaultValue={selectedUser.email} placeholder="Enter email" type="email" />
+                    <Input
+                      value={editForm.email}
+                      onChange={(e) => setEditForm((s) => ({ ...s, email: e.target.value }))}
+                      placeholder="Enter email"
+                      type="email"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Role</Label>
-                    <Select defaultValue={selectedUser.role}>
+                    <Select value={editForm.role} onValueChange={(v) => setEditForm((s) => ({ ...s, role: v as "Admin" | "Manager" | "Agent" }))}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -293,7 +355,18 @@ const UserControl = () => {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setActionType(null)}>Cancel</Button>
-            <Button onClick={() => setActionType(null)}>Save Content</Button>
+            <Button
+              onClick={() => {
+                if (actionType === "edit") {
+                  updateUserMutation.mutate();
+                  return;
+                }
+                setActionType(null);
+              }}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -370,7 +443,7 @@ const UserControl = () => {
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Temporary password</Label>
               <Input value={newUser.password} onChange={(e) => setNewUser(s => ({ ...s, password: e.target.value }))} placeholder="Set a password" type="password" />
-              <p className="text-xs text-muted-foreground">User can change it later (if you expose password reset/change flow).</p>
+              <p className="text-xs text-muted-foreground">Minimum 8 characters. User can change it later.</p>
             </div>
           </div>
 

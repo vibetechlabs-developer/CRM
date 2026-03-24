@@ -29,6 +29,11 @@ class UserSerializer(serializers.ModelSerializer):
             return ["Full System Access"]
         return ["View Tickets", "Create Tickets"]
 
+    def validate_password(self, value: str):
+        user = self.instance if self.instance else None
+        password_validation.validate_password(value, user=user)
+        return value
+
     def create(self, validated_data):
         password = validated_data.pop("password", None)
         user = User(**validated_data)

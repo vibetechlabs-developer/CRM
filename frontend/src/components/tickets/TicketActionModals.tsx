@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { BackendTicketNote, BackendUser, TicketRow } from "@/lib/data";
 import { Spinner } from "@/components/ui/spinner";
 import { Trash2, AlertTriangle } from "lucide-react";
+import { priorities, pipelineStages, type Priority, type PipelineStage } from "@/lib/data";
 
 type ModalType = "view" | "edit" | null;
 
@@ -28,6 +29,7 @@ type Props = {
   onAddNote: () => void;
 
   onSaveAdminAssignment: (ticketId: number, assignedToId: number | null) => void;
+  onSaveEdit: (payload: { id: number; status: PipelineStage | string; priority: Priority | string; insuranceType: string; assignedToId: number | null }) => void;
   isSaving: boolean;
   onDiscard?: (ticketId: number) => void;
   isDiscarding?: boolean;
@@ -84,6 +86,7 @@ export function TicketActionModals({
   isAddingNote,
   onAddNote,
   onSaveAdminAssignment,
+  onSaveEdit,
   isSaving,
   onDiscard,
   isDiscarding,
@@ -261,22 +264,53 @@ export function TicketActionModals({
               <>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium">Client Name</Label>
-                  <Input defaultValue={selectedTicket.clientName} placeholder="Enter client name" />
+                  <Input value={selectedTicket.clientName} placeholder="Enter client name" disabled />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium">Email</Label>
-                  <Input defaultValue={selectedTicket.clientEmail} placeholder="Enter email" type="email" />
+                  <Input value={selectedTicket.clientEmail} placeholder="Enter email" type="email" disabled />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">Type</Label>
-                  <Select defaultValue={String(selectedTicket.type)}>
+                  <Label className="text-sm font-medium">Stage</Label>
+                  <Select
+                    value={String(selectedTicket.stage)}
+                    onValueChange={(val) => {
+                      setSelectedTicket((prev) => {
+                        if (!prev) return prev;
+                        return { ...prev, stage: val };
+                      });
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {["New Policy", "Renewal", "Adjustment", "Cancellation"].map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
+                      {pipelineStages.map((stage) => (
+                        <SelectItem key={stage} value={stage}>
+                          {stage}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Priority</Label>
+                  <Select
+                    value={String(selectedTicket.priority)}
+                    onValueChange={(val) => {
+                      setSelectedTicket((prev) => {
+                        if (!prev) return prev;
+                        return { ...prev, priority: val };
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorities.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -284,7 +318,17 @@ export function TicketActionModals({
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium">Insurance Type</Label>
-                  <Input defaultValue={selectedTicket.insuranceType} placeholder="e.g. Home, Auto" />
+                  <Input
+                    value={selectedTicket.insuranceType}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedTicket((prev) => {
+                        if (!prev) return prev;
+                        return { ...prev, insuranceType: val };
+                      });
+                    }}
+                    placeholder="e.g. Home, Auto"
+                  />
                 </div>
 
                 {userRole === "ADMIN" && (
@@ -329,11 +373,13 @@ export function TicketActionModals({
             <Button
               disabled={isSaving}
               onClick={() => {
-                if (userRole === "ADMIN") {
-                  onSaveAdminAssignment(selectedTicket.id, selectedTicket.assignedToId);
-                  return;
-                }
-                setModalType(null);
+                onSaveEdit({
+                  id: selectedTicket.id,
+                  status: selectedTicket.stage,
+                  priority: selectedTicket.priority,
+                  insuranceType: selectedTicket.insuranceType,
+                  assignedToId: userRole === "ADMIN" ? selectedTicket.assignedToId : null,
+                });
               }}
             >
               Save changes

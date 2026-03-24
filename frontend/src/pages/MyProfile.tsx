@@ -69,6 +69,10 @@ export default function MyProfile() {
       toast({ title: "Passwords do not match", description: "Confirm password must match new password.", variant: "destructive" });
       return;
     }
+    if (newPassword.length < 8) {
+      toast({ title: "Weak password", description: "New password must be at least 8 characters.", variant: "destructive" });
+      return;
+    }
 
     setSavingPassword(true);
     try {

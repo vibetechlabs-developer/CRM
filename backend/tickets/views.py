@@ -103,7 +103,11 @@ class TicketViewSet(ModelViewSet):
         completed_tickets = qs.filter(status='COMPLETED').count()
         high_priority = qs.filter(priority='HIGH').count()
         active_tickets = qs.exclude(status__in=['COMPLETED', 'DISCARDED_LEADS']).count()
-        total_clients = Client.objects.count()
+        # For AGENT dashboard, only count clients that have tickets assigned to that agent.
+        if getattr(request.user, "role", None) in ("ADMIN", "MANAGER"):
+            total_clients = Client.objects.count()
+        else:
+            total_clients = Client.objects.filter(tickets__assigned_to=request.user).distinct().count()
 
         now = timezone.now()
         def get_month_start(dt, offset):
