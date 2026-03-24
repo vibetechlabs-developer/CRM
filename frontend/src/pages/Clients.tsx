@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import type { Client } from "@/lib/data";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,6 +47,7 @@ function useDebouncedValue<T>(value: T, delayMs = 250) {
 
 const Clients = () => {
   const [search, setSearch] = useState("");
+  const [renewalWindow, setRenewalWindow] = useState("all");
   const debouncedSearch = useDebouncedValue(search, 300);
   const queryClient = useQueryClient();
 
@@ -54,15 +56,16 @@ const Clients = () => {
   // Reset page when search changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, renewalWindow]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["clients", debouncedSearch, page],
+    queryKey: ["clients", debouncedSearch, renewalWindow, page],
     queryFn: async () => {
       // Backend is mounted under /api/, and DRF router registers 'clients' there -> /api/clients/
       const response = await api.get("/api/clients/", {
         params: { 
           search: debouncedSearch || undefined,
+          renewal_days: renewalWindow === "all" ? undefined : Number(renewalWindow),
           page,
           ordering: "-created_at"
         },
@@ -365,9 +368,27 @@ const Clients = () => {
           </DialogContent>
         </Dialog>
       </div>
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clients..." className="pl-10" />
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, phone, or client ID..."
+            className="pl-10"
+          />
+        </div>
+        <Select value={renewalWindow} onValueChange={setRenewalWindow}>
+          <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectValue placeholder="Upcoming renewals" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All clients</SelectItem>
+            <SelectItem value="7">Upcoming renewals (7 days)</SelectItem>
+            <SelectItem value="15">Upcoming renewals (15 days)</SelectItem>
+            <SelectItem value="30">Upcoming renewals (30 days)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Summary row */}

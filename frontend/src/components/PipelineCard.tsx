@@ -137,6 +137,9 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
             {ticket.type}
           </span>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-secondary text-secondary-foreground">
+            {ticket.stage}
+          </span>
         </div>
 
         <div 

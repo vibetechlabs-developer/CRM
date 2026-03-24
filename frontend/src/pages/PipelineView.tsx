@@ -47,12 +47,28 @@ const formatTicket = (t: any): Ticket => {
         t.assigned_to_username ||
         (t.assigned_to ? `User ${t.assigned_to}` : null);
 
+    const typeDisplay = getTypeDisplay(t.ticket_type);
+    const statusDisplay = getStatusDisplay(t.status) as PipelineStage;
+    let stageForProjectPipeline: PipelineStage = statusDisplay;
+
+    // Business rule for Project Pipeline:
+    // - New Policy tickets start in Lead/Inquiry
+    // - Renewal tickets start in Renewal
+    // - Once moved to Follow Up/Completed/Discarded, show by that status
+    if (statusDisplay !== "Follow Up" && statusDisplay !== "Completed" && statusDisplay !== "Discarded Leads") {
+      if (typeDisplay === "New Policy") {
+        stageForProjectPipeline = "Lead/Inquiry";
+      } else if (typeDisplay === "Renewal") {
+        stageForProjectPipeline = "Renewal";
+      }
+    }
+
     return {
         id: String(t.id),
         ticket_no: t.ticket_no,
         clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
-        type: getTypeDisplay(t.ticket_type),
-        stage: getStatusDisplay(t.status) as PipelineStage,
+        type: typeDisplay,
+        stage: stageForProjectPipeline,
         priority: getPriorityDisplay(t.priority),
         createdDate: new Date(t.created_at).toLocaleDateString(),
         assignedTo: assignedToDisplay || "Unassigned",
@@ -69,8 +85,9 @@ const PipelineView = () => {
   const queryClient = useQueryClient();
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
-  const [selectedYear, setSelectedYear] = useState<string>("All");
-  const [selectedMonth, setSelectedMonth] = useState<string>("All");
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   const { data: ticketsData, isLoading } = useQuery({
@@ -269,6 +286,9 @@ const PipelineView = () => {
             
             if (stage === "Lead/Inquiry") {
               stageTickets = stageTickets.filter(t => t.type === "New Policy");
+            }
+            if (stage === "Renewal") {
+              stageTickets = stageTickets.filter(t => t.type === "Renewal");
             }
 
             const colorString = stageColors[stage] || "text-muted-foreground border-border bg-muted";

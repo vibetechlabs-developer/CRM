@@ -61,8 +61,9 @@ const ChangesPipelineView = () => {
   const queryClient = useQueryClient();
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
-  const [selectedYear, setSelectedYear] = useState<string>("All");
-  const [selectedMonth, setSelectedMonth] = useState<string>("All");
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   const { data: ticketsData, isLoading } = useQuery({

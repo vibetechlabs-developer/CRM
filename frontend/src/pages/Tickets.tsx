@@ -65,12 +65,21 @@ const priorityStyles: Record<Priority, string> = {
   "Low": "bg-success/10 text-success border-success/20",
 };
 
+const requestTypeOptions = [
+  { label: "New Policy", value: "NEW" },
+  { label: "Renewal", value: "RENEWAL" },
+  { label: "Changes", value: "CHANGES" },
+  { label: "Cancellation", value: "CANCELLATION" },
+];
+
 const Tickets = () => {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [requestTypeFilter, setRequestTypeFilter] = useState<string>("all");
+  const [assignedToFilter, setAssignedToFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
@@ -83,10 +92,14 @@ const Tickets = () => {
   const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["tickets", page, debouncedSearch, stageFilter, priorityFilter],
+    queryKey: ["tickets", page, debouncedSearch, stageFilter, priorityFilter, requestTypeFilter, assignedToFilter],
     queryFn: async () => {
       const statusParam = stageFilter !== "all" ? getStatusBackendCode(stageFilter) : undefined;
       const priorityParam = priorityFilter !== "all" ? getPriorityBackendCode(priorityFilter) : undefined;
+      const requestTypeParam = requestTypeFilter !== "all" ? requestTypeFilter : undefined;
+      const assignedToParam = user?.role === "ADMIN" && assignedToFilter !== "all"
+        ? Number(assignedToFilter)
+        : undefined;
       
       const response = await api.get("/api/tickets/", {
         params: {
@@ -94,6 +107,8 @@ const Tickets = () => {
           search: debouncedSearch || undefined,
           status: statusParam,
           priority: priorityParam,
+          ticket_type: requestTypeParam,
+          assigned_to: assignedToParam,
           ordering: "-created_at"
         }
       });
@@ -205,7 +220,7 @@ const Tickets = () => {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, stageFilter, priorityFilter]);
+  }, [debouncedSearch, stageFilter, priorityFilter, requestTypeFilter, assignedToFilter]);
 
   const totalCount = data?.totalCount || 0;
   const itemsPerPage = 10;
@@ -248,8 +263,8 @@ const Tickets = () => {
       </div>
 
       {/* Filters Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-card p-3 rounded-xl border shadow-sm">
-        <div className="relative w-full md:max-w-md">
+      <div className="flex flex-col gap-3 bg-card p-3 rounded-xl border shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="relative w-full md:max-w-sm lg:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={search}
@@ -258,24 +273,46 @@ const Tickets = () => {
             className="pl-9 bg-secondary/50 border-0 focus-visible:ring-1"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:flex-nowrap md:justify-end">
+          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:flex-nowrap">
             <Select value={stageFilter} onValueChange={setStageFilter}>
-              <SelectTrigger className="w-[140px] h-9 bg-secondary/50 border-0"><SelectValue placeholder="Stage" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full bg-secondary/50 border-0 sm:w-[150px]"><SelectValue placeholder="Stage" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Stages</SelectItem>
                 {pipelineStages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[120px] h-9 bg-secondary/50 border-0"><SelectValue placeholder="Priority" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full bg-secondary/50 border-0 sm:w-[130px]"><SelectValue placeholder="Priority" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Priorities</SelectItem>
                 {priorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={requestTypeFilter} onValueChange={setRequestTypeFilter}>
+              <SelectTrigger className="h-9 w-full bg-secondary/50 border-0 sm:w-[180px]"><SelectValue placeholder="Request Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Request Types</SelectItem>
+                {requestTypeOptions.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {user?.role === "ADMIN" && (
+              <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
+                <SelectTrigger className="h-9 w-full bg-secondary/50 border-0 sm:w-[170px]"><SelectValue placeholder="Assigned To" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Agents</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={String(agent.id)}>
+                      {`${agent.first_name || ""} ${agent.last_name || ""}`.trim() || agent.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <div className="hidden sm:flex items-center gap-1 border rounded-lg p-1 bg-secondary/20">
+          <div className="hidden sm:flex items-center gap-1 border rounded-lg p-1 bg-secondary/20 md:ml-1">
             <button
               onClick={() => setViewMode("list")}
               className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}

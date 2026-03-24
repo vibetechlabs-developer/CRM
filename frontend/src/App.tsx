@@ -40,6 +40,7 @@ const CancellationForm = lazy(() => import("./pages/CancellationForm"));
 const CustomerIssueForm = lazy(() => import("./pages/CustomerIssueForm"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const NewBusinessForm = lazy(() => import("./pages/NewBusinessForm"));
+const ClientFormsLanding = lazy(() => import("./pages/ClientFormsLanding"));
 import ScrollToTop from "./components/ScrollToTop";
 import { GlobalAuthListener } from "@/components/GlobalAuthListener";
 
@@ -103,7 +104,10 @@ const App = () => (
           }>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/forms" element={<ClientFormsLanding />} />
+              <Route path="/client/forms" element={<ClientFormsLanding />} />
               <Route path="/forms/new-business" element={<NewBusinessForm />} />
+              <Route path="/forms/new-buisness" element={<NewBusinessForm />} />
               <Route path="/forms/renewal" element={<RenewalRequestForm />} />
               <Route path="/forms/changes" element={<PolicyChangeForm />} />
               <Route path="/forms/cancellation" element={<CancellationForm />} />

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, Lock, CheckCircle2 } from "lucide-react";
+import { Shield, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import api from "@/lib/api";
 const Login = () => {
@@ -12,6 +12,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -90,10 +91,18 @@ const Login = () => {
                     id="password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="pl-9 bg-secondary/50 focus-visible:bg-background h-11"
+                    className="pl-9 pr-10 bg-secondary/50 focus-visible:bg-background h-11"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -117,10 +126,6 @@ const Login = () => {
             </form>
           </div>
 
-          <div className="bg-secondary/50 px-8 py-4 border-t flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <CheckCircle2 className="h-3 w-3 text-success" />
-            Use <span className="font-semibold text-foreground">admin</span> / <span className="font-semibold text-foreground">admin123</span>
-          </div>
         </Card>
       </div>
     </div>

@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning } from "lucide-react";
+import { FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RequestType } from "@/lib/data";
 
@@ -54,25 +53,18 @@ const requestTypes: {
   },
 ];
 
-const NewTicket = () => {
+const ClientFormsLanding = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Create New Ticket</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Select what you want to do. The detailed form for that ticket type will appear below.
-          </p>
-        </div>
-        <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Button>
+    <div className="space-y-6 max-w-6xl mx-auto px-4 py-8">
+      <div>
+        <h1 className="text-2xl font-bold">Client Request Forms</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Select request type to open the correct form.
+        </p>
       </div>
 
-      {/* Request Type Selection */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3 space-y-1">
           <CardTitle className="text-base font-semibold">Select Request Type</CardTitle>
@@ -90,9 +82,7 @@ const NewTicket = () => {
                 <button
                   key={rt.type}
                   type="button"
-                  onClick={() => {
-                    navigate(rt.path);
-                  }}
+                  onClick={() => navigate(rt.path)}
                   className="p-5 rounded-xl border-2 text-left transition-all duration-150 border-border hover:border-primary/30 hover:bg-secondary/50"
                 >
                   <div className={`h-10 w-10 rounded-lg ${rt.bg} border flex items-center justify-center mb-3`}>
@@ -110,4 +100,4 @@ const NewTicket = () => {
   );
 };
 
-export default NewTicket;  
+export default ClientFormsLanding;
