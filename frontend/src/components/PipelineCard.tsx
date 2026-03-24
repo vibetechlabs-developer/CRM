@@ -3,12 +3,9 @@ import { Ticket } from "@/lib/data";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Clock, Eye, Edit2 } from "lucide-react";
+import { Clock, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { pipelineStages, priorities } from "@/lib/data";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -31,7 +28,7 @@ const typeColors: Record<string, string> = {
 };
 
 export function PipelineCard({ ticket }: PipelineCardProps) {
-  const [actionType, setActionType] = useState<"view" | "edit" | null>(null);
+  const [actionType, setActionType] = useState<"view" | null>(null);
   const [notes, setNotes] = useState(ticket.additionalNotes || ticket.notes || "");
   const queryClient = useQueryClient();
 
@@ -121,12 +118,6 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
             >
               <Eye className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={() => setActionType("edit")}
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded"
-            >
-              <Edit2 className="h-3.5 w-3.5" />
-            </button>
           </div>
         </div>
 
@@ -181,82 +172,37 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
       <Dialog open={!!actionType} onOpenChange={() => setActionType(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>
-              {actionType === "view" ? "Ticket Details" : "Edit Ticket"}
-            </DialogTitle>
+            <DialogTitle>Ticket Details</DialogTitle>
             <DialogDescription>
-              {actionType === "view" ? "Viewing pipeline details for the ticket." : "Make changes to the pipeline ticket."}
+              Viewing pipeline details for the ticket.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            {actionType === "view" ? (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <span className="text-sm font-medium text-right text-muted-foreground">Client</span>
-                  <span className="text-sm col-span-3 font-semibold">{ticket.clientName}</span>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <span className="text-sm font-medium text-right text-muted-foreground">Ticket ID</span>
-                  <span className="text-sm col-span-3 font-mono text-primary">{ticket.id}</span>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <span className="text-sm font-medium text-right text-muted-foreground">Type</span>
-                  <span className="text-sm col-span-3">
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
-                      {ticket.type}
-                    </span>
-                  </span>
-                </div>
-                {(ticket.additionalNotes || ticket.notes) && (
-                  <div className="grid grid-cols-4 items-start gap-4">
-                    <span className="text-sm font-medium text-right text-muted-foreground">Notes</span>
-                    <span className="text-sm col-span-3 whitespace-pre-wrap">{ticket.additionalNotes || ticket.notes}</span>
-                  </div>
-                )}
-              </>
-            ) : actionType === "edit" ? (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">Stage</Label>
-                  <Select defaultValue={ticket.stage}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pipelineStages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">Priority</Label>
-                  <Select defaultValue={ticket.priority}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {priorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">Notes</Label>
-                  <Textarea 
-                    placeholder="Add notes for this ticket..." 
-                    value={notes} 
-                    onChange={(e) => setNotes(e.target.value)} 
-                    className="min-h-[100px]"
-                  />
-                </div>
-              </>
-            ) : null}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <span className="text-sm font-medium text-right text-muted-foreground">Client</span>
+              <span className="text-sm col-span-3 font-semibold">{ticket.clientName}</span>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <span className="text-sm font-medium text-right text-muted-foreground">Ticket ID</span>
+              <span className="text-sm col-span-3 font-mono text-primary">{ticket.id}</span>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <span className="text-sm font-medium text-right text-muted-foreground">Type</span>
+              <span className="text-sm col-span-3">
+                <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
+                  {ticket.type}
+                </span>
+              </span>
+            </div>
+            {(ticket.additionalNotes || ticket.notes) && (
+              <div className="grid grid-cols-4 items-start gap-4">
+                <span className="text-sm font-medium text-right text-muted-foreground">Notes</span>
+                <span className="text-sm col-span-3 whitespace-pre-wrap">{ticket.additionalNotes || ticket.notes}</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setActionType(null); setNotes(ticket.additionalNotes || ticket.notes || ""); }}>Close</Button>
-            {actionType === "edit" && (
-              <Button onClick={handleSave} disabled={updateNotesMutation.isPending}>
-                {updateNotesMutation.isPending ? "Saving..." : "Save changes"}
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
