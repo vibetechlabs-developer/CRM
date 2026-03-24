@@ -62,6 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load current user on refresh using cookie-based auth
   useEffect(() => {
+    const isPublicFormsPage =
+      window.location.pathname === "/forms" ||
+      window.location.pathname.startsWith("/forms/") ||
+      window.location.pathname === "/client/forms";
+
+    if (isPublicFormsPage) {
+      setIsLoading(false);
+      return;
+    }
+
     if (!user) reloadMe();
     else setIsLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
