@@ -36,6 +36,36 @@ export const policyChangeSchema = z.object({
   billing_details_comments: z.string().optional(),
   
   requesting_information_or_instruction: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const addressChangeSelected = data.what_changes.includes("Address change, mention in comments");
+
+  if (!addressChangeSelected) {
+    return;
+  }
+
+  if (!data.new_street_address?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Street address is required",
+      path: ["new_street_address"],
+    });
+  }
+
+  if (!data.new_city?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "City is required",
+      path: ["new_city"],
+    });
+  }
+
+  if (!data.new_state?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "State is required",
+      path: ["new_state"],
+    });
+  }
 });
 
 export type PolicyChangeFormValues = z.infer<typeof policyChangeSchema>;

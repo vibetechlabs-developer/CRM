@@ -17,6 +17,11 @@ def _clean_str(value):
     return str(value).strip()
 
 
+def _safe_get_text(data, key, default=""):
+    """Safely read any payload field as text, even when frontend sends numbers."""
+    return _clean_str(data.get(key, default))
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @authentication_classes([])  # Disable SessionAuthentication -> no CSRF required
@@ -30,17 +35,17 @@ def submit_insurance_form(request):
         data = request.data
         
         # Extract client information
-        first_name = _clean_str(data.get('first_name'))
-        last_name = _clean_str(data.get('last_name'))
-        email = _clean_str(data.get('email')).lower()
-        phone = _clean_str(data.get('phone'))
-        address = _clean_str(data.get('address'))
-        occupation = _clean_str(data.get('occupation'))
-        street_address = _clean_str(data.get('street_address'))
-        street_address_line_2 = _clean_str(data.get('street_address_line_2'))
-        city = _clean_str(data.get('city'))
-        state = _clean_str(data.get('state'))
-        postal_code = _clean_str(data.get('postal_code'))
+        first_name = _safe_get_text(data, 'first_name')
+        last_name = _safe_get_text(data, 'last_name')
+        email = _safe_get_text(data, 'email').lower()
+        phone = _safe_get_text(data, 'phone')
+        address = _safe_get_text(data, 'address')
+        occupation = _safe_get_text(data, 'occupation')
+        street_address = _safe_get_text(data, 'street_address')
+        street_address_line_2 = _safe_get_text(data, 'street_address_line_2')
+        city = _safe_get_text(data, 'city')
+        state = _safe_get_text(data, 'state')
+        postal_code = _safe_get_text(data, 'postal_code')
         
         # Build full address
         address_parts = []
@@ -87,11 +92,11 @@ def submit_insurance_form(request):
             client.save()
         
         # Extract insurance form data
-        insurance_type = _clean_str(data.get('insurance_type'))
-        insurance_effective_date = data.get('insurance_effective_date')
-        date_of_birth = data.get('date_of_birth')
-        currently_insured = _clean_str(data.get('currently_insured'))
-        additional_details = _clean_str(data.get('additional_details'))
+        insurance_type = _safe_get_text(data, 'insurance_type')
+        insurance_effective_date = _safe_get_text(data, 'insurance_effective_date')
+        date_of_birth = _safe_get_text(data, 'date_of_birth')
+        currently_insured = _safe_get_text(data, 'currently_insured')
+        additional_details = _safe_get_text(data, 'additional_details')
         
         # Build ticket details
         details_dict = {
@@ -106,17 +111,17 @@ def submit_insurance_form(request):
         
         # Auto Insurance Fields
         if 'Auto' in insurance_type:
-            number_of_drivers = data.get('number_of_drivers', '1')
-            number_of_vehicles = data.get('number_of_vehicles', '1')
-            driving_license_number = _clean_str(data.get('driving_license_number'))
-            g1_date = data.get('g1_date')
-            g2_date = data.get('g2_date')
-            g_date = data.get('g_date')
-            car_vin_number = _clean_str(data.get('car_vin_number'))
-            one_way_km = _clean_str(data.get('one_way_km'))
-            annual_km = _clean_str(data.get('annual_km'))
-            at_fault_claim = _clean_str(data.get('at_fault_claim'))
-            conviction = _clean_str(data.get('conviction'))
+            number_of_drivers = _safe_get_text(data, 'number_of_drivers', '1')
+            number_of_vehicles = _safe_get_text(data, 'number_of_vehicles', '1')
+            driving_license_number = _safe_get_text(data, 'driving_license_number')
+            g1_date = _safe_get_text(data, 'g1_date')
+            g2_date = _safe_get_text(data, 'g2_date')
+            g_date = _safe_get_text(data, 'g_date')
+            car_vin_number = _safe_get_text(data, 'car_vin_number')
+            one_way_km = _safe_get_text(data, 'one_way_km')
+            annual_km = _safe_get_text(data, 'annual_km')
+            at_fault_claim = _safe_get_text(data, 'at_fault_claim')
+            conviction = _safe_get_text(data, 'conviction')
             
             details_dict["Number of Drivers"] = number_of_drivers
             details_dict["Number of Vehicles"] = number_of_vehicles
@@ -141,16 +146,16 @@ def submit_insurance_form(request):
         
         # Home/Tenant Insurance Fields
         if 'Home' in insurance_type or 'Tenant' in insurance_type:
-            property_address = _clean_str(data.get('property_address'))
-            property_address_line_2 = _clean_str(data.get('property_address_line_2'))
-            property_city = _clean_str(data.get('property_city'))
-            property_state = _clean_str(data.get('property_state'))
-            property_postal_code = _clean_str(data.get('property_postal_code'))
-            property_type = _clean_str(data.get('property_type'))
-            property_value = _clean_str(data.get('property_value'))
-            year_built = _clean_str(data.get('year_built'))
-            square_footage = _clean_str(data.get('square_footage'))
-            home_claims_history = _clean_str(data.get('home_claims_history'))
+            property_address = _safe_get_text(data, 'property_address')
+            property_address_line_2 = _safe_get_text(data, 'property_address_line_2')
+            property_city = _safe_get_text(data, 'property_city')
+            property_state = _safe_get_text(data, 'property_state')
+            property_postal_code = _safe_get_text(data, 'property_postal_code')
+            property_type = _safe_get_text(data, 'property_type')
+            property_value = _safe_get_text(data, 'property_value')
+            year_built = _safe_get_text(data, 'year_built')
+            square_footage = _safe_get_text(data, 'square_footage')
+            home_claims_history = _safe_get_text(data, 'home_claims_history')
             
             if property_address:
                 property_addr_parts = [property_address]
@@ -177,16 +182,16 @@ def submit_insurance_form(request):
         # Rental Property Insurance Fields
         # Check for rental insurance (handles both "Only Rental property Insurance" and combined types)
         if 'Rental' in insurance_type:
-            rental_property_address = _clean_str(data.get('rental_property_address'))
-            rental_property_address_line_2 = _clean_str(data.get('rental_property_address_line_2'))
-            rental_property_city = _clean_str(data.get('rental_property_city'))
-            rental_property_state = _clean_str(data.get('rental_property_state'))
-            rental_property_postal_code = _clean_str(data.get('rental_property_postal_code'))
-            rental_property_type = _clean_str(data.get('rental_property_type'))
-            number_of_units = data.get('number_of_units', '1')
-            rental_property_value = _clean_str(data.get('rental_property_value'))
-            rental_year_built = _clean_str(data.get('rental_year_built'))
-            rental_income = _clean_str(data.get('rental_income'))
+            rental_property_address = _safe_get_text(data, 'rental_property_address')
+            rental_property_address_line_2 = _safe_get_text(data, 'rental_property_address_line_2')
+            rental_property_city = _safe_get_text(data, 'rental_property_city')
+            rental_property_state = _safe_get_text(data, 'rental_property_state')
+            rental_property_postal_code = _safe_get_text(data, 'rental_property_postal_code')
+            rental_property_type = _safe_get_text(data, 'rental_property_type')
+            number_of_units = _safe_get_text(data, 'number_of_units', '1')
+            rental_property_value = _safe_get_text(data, 'rental_property_value')
+            rental_year_built = _safe_get_text(data, 'rental_year_built')
+            rental_income = _safe_get_text(data, 'rental_income')
             
             if rental_property_address:
                 rental_addr_parts = [rental_property_address]
@@ -210,7 +215,7 @@ def submit_insurance_form(request):
             if rental_income:
                 details_dict["Monthly Rental Income"] = f"${rental_income}"
             # Also check for square_footage if provided (shared field)
-            square_footage = _clean_str(data.get('square_footage'))
+            square_footage = _safe_get_text(data, 'square_footage')
             if square_footage:
                 details_dict["Square Footage"] = square_footage
         
@@ -301,7 +306,9 @@ def submit_customer_issue_form(request):
     if hasattr(request.data, "_mutable"):
         request.data._mutable = True
     request.data["ticket_type"] = "CHANGES"
-    request.data["additional_details"] = (request.data.get("additional_details") or "") + "\n[Form: Customer Issue]"
+    request.data["additional_details"] = (
+        _safe_get_text(request.data, "additional_details") + "\n[Form: Customer Issue]"
+    ).strip()
     return submit_typed_form(request)
 
 
@@ -315,18 +322,18 @@ def submit_typed_form(request):
         ticket_type = data.get("ticket_type", "NEW")
 
         # Extract client info
-        first_name = _clean_str(data.get('first_name'))
-        last_name = _clean_str(data.get('last_name'))
-        email = _clean_str(data.get('email')).lower()
-        phone = _clean_str(data.get('phone'))
-        occupation = _clean_str(data.get('occupation'))
+        first_name = _safe_get_text(data, 'first_name')
+        last_name = _safe_get_text(data, 'last_name')
+        email = _safe_get_text(data, 'email').lower()
+        phone = _safe_get_text(data, 'phone')
+        occupation = _safe_get_text(data, 'occupation')
 
         # Address lines
-        street_address = _clean_str(data.get('street_address'))
-        street_address_line_2 = _clean_str(data.get('street_address_line_2'))
-        city = _clean_str(data.get('city'))
-        state = _clean_str(data.get('state'))
-        postal_code = _clean_str(data.get('postal_code'))
+        street_address = _safe_get_text(data, 'street_address')
+        street_address_line_2 = _safe_get_text(data, 'street_address_line_2')
+        city = _safe_get_text(data, 'city')
+        state = _safe_get_text(data, 'state')
+        postal_code = _safe_get_text(data, 'postal_code')
 
         address_parts = [p for p in [street_address, street_address_line_2, city, state, postal_code] if p]
         full_address = ', '.join(address_parts)
@@ -358,8 +365,8 @@ def submit_typed_form(request):
             client.save()
 
         # Common form fields
-        insurance_type = _clean_str(data.get('insurance_type')) or 'General'
-        additional_details = _clean_str(data.get('additional_details'))
+        insurance_type = _safe_get_text(data, 'insurance_type') or 'General'
+        additional_details = _safe_get_text(data, 'additional_details')
 
         # Aggregate all unknown fields for traceability (keeps "same as JotForm" flexibility)
         passthrough_keys = sorted(k for k in data.keys() if k not in {

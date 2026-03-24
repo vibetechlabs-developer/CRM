@@ -44,7 +44,7 @@ export function AddressSection({ control }: AddressSectionProps) {
             name="city"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>City</FormLabel>
+                <FormLabel>City <span className="text-destructive">*</span></FormLabel>
                 <FormControl>
                   <Input placeholder="City" {...field} />
                 </FormControl>
@@ -57,7 +57,7 @@ export function AddressSection({ control }: AddressSectionProps) {
             name="state"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>State / Province</FormLabel>
+                <FormLabel>State / Province <span className="text-destructive">*</span></FormLabel>
                 <FormControl>
                   <Input placeholder="State / Province" {...field} />
                 </FormControl>

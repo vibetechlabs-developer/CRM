@@ -13,8 +13,8 @@ export const insuranceFormSchema = z.object({
   // Address
   street_address: z.string().min(1, "Street Address is required"),
   street_address_line_2: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
   postal_code: z.string().optional(),
   address: z.string().optional(),
 
