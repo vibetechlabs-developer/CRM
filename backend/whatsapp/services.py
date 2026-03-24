@@ -1,6 +1,8 @@
-import requests
-from django.conf import settings
 import logging
+import json
+from urllib import error, request
+
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,24 @@ def send_whatsapp_message(to_number: str, message_body: str) -> dict:
         "text": {"body": message_body}
     }
     
+    req = request.Request(
+        url=url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        with request.urlopen(req, timeout=10) as response:
+            response_body = response.read().decode("utf-8")
+            if not response_body:
+                return {}
+            return json.loads(response_body)
+    except error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        logger.error(f"Failed to send WhatsApp message to {to_number}: HTTP {e.code} {e.reason}")
+        logger.error(f"Meta API Response: {body}")
+        raise
+    except error.URLError as e:
         logger.error(f"Failed to send WhatsApp message to {to_number}: {str(e)}")
-        # You could also log the response text if e.response is not None
-        if hasattr(e, 'response') and e.response is not None:
-             logger.error(f"Meta API Response: {e.response.text}")
         raise
