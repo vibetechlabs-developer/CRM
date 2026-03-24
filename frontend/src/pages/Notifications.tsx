@@ -3,6 +3,7 @@ import api from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bell, Check } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function Notifications() {
   const queryClient = useQueryClient();
@@ -49,7 +50,10 @@ export default function Notifications() {
       <Card className="border shadow-sm overflow-hidden">
         <div className="divide-y">
           {isLoading ? (
-            <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+            <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
+              <Spinner size="sm" />
+              <span>Loading…</span>
+            </div>
           ) : notifications.length === 0 ? (
             <div className="p-4 text-sm text-muted-foreground">No notifications yet.</div>
           ) : (

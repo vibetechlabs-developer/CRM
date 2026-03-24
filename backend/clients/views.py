@@ -1,6 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.filters import SearchFilter
+from rest_framework.filters import SearchFilter, OrderingFilter
+from common.permissions import DenyDeleteForManager
 
 from .models import Client
 from .serializers import ClientSerializer
@@ -9,9 +10,10 @@ from .serializers import ClientSerializer
 class ClientViewSet(ModelViewSet):
 
     serializer_class = ClientSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, DenyDeleteForManager]
 
-    filter_backends = [SearchFilter]
+    filter_backends = [SearchFilter, OrderingFilter]
+    ordering = ["-created_at"]
 
     search_fields = [
         "first_name",
@@ -23,7 +25,7 @@ class ClientViewSet(ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = Client.objects.all()
-        if getattr(user, "role", None) == "ADMIN":
+        if getattr(user, "role", None) in ("ADMIN", "MANAGER"):
             return qs
         # AGENT: only clients that have at least one ticket assigned to this agent
         return qs.filter(tickets__assigned_to=user).distinct()

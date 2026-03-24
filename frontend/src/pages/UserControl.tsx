@@ -12,18 +12,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+import { Spinner } from "@/components/ui/spinner";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatUser = (user: any) => ({
    id: user.id,
    name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username,
    email: user.email,
-   role: user.role === "ADMIN" ? "Admin" : "Agent",
+   role: user.role === "ADMIN" ? "Admin" : (user.role === "MANAGER" ? "Manager" : "Agent"),
    permissions: user.permissions || [],
 });
 
 const UserControl = () => {
   const queryClient = useQueryClient();
+  const { user: me } = useAuth();
   const { data: usersData = [], isLoading } = useQuery({
       queryKey: ["users"],
       queryFn: async () => {
@@ -44,7 +47,7 @@ const UserControl = () => {
     first_name: "",
     last_name: "",
     email: "",
-    role: "AGENT" as "ADMIN" | "AGENT",
+    role: "AGENT" as "ADMIN" | "AGENT" | "MANAGER",
     password: "",
   });
 
@@ -143,7 +146,12 @@ const UserControl = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">Loading users...</td>
+                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">
+                    <div className="flex items-center justify-center gap-2">
+                      <Spinner size="sm" />
+                      <span>Loading users...</span>
+                    </div>
+                  </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
@@ -197,9 +205,7 @@ const UserControl = () => {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openAction(user, "edit")}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10" onClick={() => openAction(user, "delete")}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* User deletion is disabled for all roles; hide the delete action */}
                     </div>
                   </td>
                 </tr>
@@ -255,6 +261,7 @@ const UserControl = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Admin">Admin</SelectItem>
+                        <SelectItem value="Manager">Manager</SelectItem>
                         <SelectItem value="Agent">Agent</SelectItem>
                       </SelectContent>
                     </Select>
@@ -347,7 +354,7 @@ const UserControl = () => {
               <Label className="text-sm font-medium">Role</Label>
               <Select
                 value={newUser.role}
-                onValueChange={(v) => setNewUser(s => ({ ...s, role: v as "ADMIN" | "AGENT" }))}
+                onValueChange={(v) => setNewUser(s => ({ ...s, role: v as "ADMIN" | "AGENT" | "MANAGER" }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -355,6 +362,7 @@ const UserControl = () => {
                 <SelectContent>
                   <SelectItem value="AGENT">Agent</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="MANAGER">Manager</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -5,12 +5,22 @@ import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Plus, Mail, Phone, MapPin, Edit2, Eye } from "lucide-react";
+import { Search, Plus, Mail, Phone, MapPin, Edit2, Eye, Users } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import type { Client } from "@/lib/data";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
@@ -39,22 +49,37 @@ const Clients = () => {
   const debouncedSearch = useDebouncedValue(search, 300);
   const queryClient = useQueryClient();
 
+  const [page, setPage] = useState(1);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["clients", debouncedSearch],
+    queryKey: ["clients", debouncedSearch, page],
     queryFn: async () => {
       // Backend is mounted under /api/, and DRF router registers 'clients' there -> /api/clients/
       const response = await api.get("/api/clients/", {
-        params: debouncedSearch ? { search: debouncedSearch } : undefined,
+        params: { 
+          search: debouncedSearch || undefined,
+          page,
+          ordering: "-created_at"
+        },
       });
 
       // Support both plain list responses and paginated `{ results: [...] }` responses
-      const payload = response.data as any[] | { results?: any[] };
+      const payload = response.data as any[] | { results?: any[], count?: number };
 
       const rawItems = Array.isArray(payload)
         ? payload
         : Array.isArray(payload.results)
         ? payload.results
         : [];
+      
+      const totalCount = !Array.isArray(payload) && typeof payload.count === "number" 
+        ? payload.count 
+        : rawItems.length;
 
       // Normalize backend payload shape to our `Client` type used in the UI
       const normalized: Client[] = rawItems.map((item) => {
@@ -97,7 +122,7 @@ const Clients = () => {
         };
       });
 
-      return normalized;
+      return { items: normalized, totalCount };
     },
     staleTime: 30_000,
   });
@@ -134,7 +159,9 @@ const Clients = () => {
     address: string;
   } | null>(null);
 
-  const clients: Client[] = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  const clients: Client[] = useMemo(() => data?.items || [], [data]);
+  const totalCount: number = useMemo(() => data?.totalCount || 0, [data]);
+  const totalPages = Math.max(1, Math.ceil(totalCount / 10));
 
   const getInitials = (name?: string | null) => {
     if (!name || typeof name !== "string") {
@@ -346,12 +373,12 @@ const Clients = () => {
       {/* Summary row */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         {isLoading ? (
-          <span className="font-medium text-foreground">Loading clients...</span>
+          <Skeleton className="h-5 w-32" />
         ) : isError ? (
           <span className="font-medium text-destructive">Error loading clients</span>
         ) : (
           <>
-            <span className="font-medium text-foreground">{clients.length}</span> clients found
+            <span className="font-medium text-foreground">{totalCount}</span> clients found
           </>
         )}
       </div>
@@ -370,7 +397,42 @@ const Clients = () => {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b last:border-0 hover:bg-transparent">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      <div className="space-y-2">
+                        <Skeleton className="h-3 w-40" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </td>
+                    <td className="p-4 hidden lg:table-cell">
+                      <Skeleton className="h-3 w-48" />
+                    </td>
+                    <td className="p-4">
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : clients.map((client) => (
                 <tr key={client.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
@@ -421,13 +483,54 @@ const Clients = () => {
                   </td>
                 </tr>
               ))}
-              {clients.length === 0 && (
-                <tr><td colSpan={6} className="p-10 text-center text-muted-foreground text-sm">No clients found</td></tr>
+              {!isLoading && clients.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <EmptyState
+                      icon={Users}
+                      title="No clients found"
+                      description="We couldn't find any clients matching your search."
+                    />
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
       </Card>
+
+      {/* Pagination component */}
+      {totalPages > 1 && (
+        <Pagination className="mt-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (page > 1) setPage(page - 1);
+                }}
+                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            <PaginationItem>
+              <span className="text-sm px-4">
+                Page {page} of {totalPages}
+              </span>
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (page < totalPages) setPage(page + 1);
+                }}
+                className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {/* Action Dialog */}
       <Dialog

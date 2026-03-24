@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { normalizeListResponse } from "@/lib/normalize";
+import { Spinner } from "@/components/ui/spinner";
 
 const getTypeDisplay = (backendCode: string) => {
     switch(backendCode) {
@@ -82,7 +83,10 @@ export default function DiscardedLeads() {
                             {isLoading ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                        Loading discarded leads...
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Spinner size="sm" />
+                                            <span>Loading discarded leads...</span>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ) : error ? (

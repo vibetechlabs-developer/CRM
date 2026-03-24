@@ -1,4 +1,4 @@
-import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
@@ -10,13 +10,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const overviewItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Pipeline View", url: "/pipeline", icon: GitBranch },
+  { title: "Project Pipeline", url: "/pipeline", icon: GitBranch },
+  { title: "Changes Pipeline", url: "/changes-pipeline", icon: SlidersHorizontal },
 ];
 
 const managementItems = [
   { title: "Clients", url: "/clients", icon: Users },
   { title: "Tickets", url: "/tickets", icon: FileText },
-  { title: "Insurance Form", url: "/insurance-form/manual", icon: FileEdit },
+  // Insurance Form manual entry is still available via direct route, but removed from sidebar
   { title: "Discarded Leads", url: "/discarded-leads", icon: ArchiveX },
 ];
 
@@ -80,15 +81,11 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
-      <div className={`p-4 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-        <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-          <Shield className="h-4 w-4 text-sidebar-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <h2 className="text-sm font-bold text-sidebar-accent-foreground leading-tight">InsuranceCRM</h2>
-            <p className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">Management V2.0</p>
-          </div>
+      <div className={`flex items-center ${collapsed ? "justify-center p-2" : "gap-3 p-4"}`}>
+        {collapsed ? (
+          <img src="/logo.png" alt="Logo" className="h-8 w-11 object-cover object-left shrink-0" />
+        ) : (
+          <img src="/logo.png" alt="Logo" className="h-12 object-contain shrink-0" />
         )}
       </div>
 
@@ -98,7 +95,7 @@ export function AppSidebar() {
         {renderGroup("Management", managementItems)}
         {renderGroup(
           "System",
-          (user?.role === "ADMIN" ? systemItems : systemItems.filter((i) => i.url !== "/user-control")) as typeof overviewItems
+          ((user?.role === "ADMIN" || user?.role === "MANAGER") ? systemItems : systemItems.filter((i) => i.url !== "/user-control")) as typeof overviewItems
         )}
       </SidebarContent>
     </Sidebar>

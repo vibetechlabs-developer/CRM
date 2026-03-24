@@ -7,7 +7,7 @@ from rest_framework import status
 
 from .serializers import UserSerializer, CurrentUserUpdateSerializer, ChangePasswordSerializer
 from .models import User
-from common.permissions import IsAdminRole
+from common.permissions import IsAdminRole, IsAdminOrManagerNoDelete
 
 
 class CurrentUserView(RetrieveUpdateAPIView):
@@ -26,8 +26,14 @@ class CurrentUserView(RetrieveUpdateAPIView):
 class UserViewSet(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    # Only ADMIN can list/create/update/delete users (agents must not manage users)
-    permission_classes = [IsAdminRole]
+    # ADMIN full access; MANAGER can do everything except DELETE
+    permission_classes = [IsAdminOrManagerNoDelete]
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Disallow deletion of users for all roles. Return 403.
+        """
+        return Response({"detail": "User deletion is disabled."}, status=status.HTTP_403_FORBIDDEN)
 
 
 class ChangePasswordView(APIView):

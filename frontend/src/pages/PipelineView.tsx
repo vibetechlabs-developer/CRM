@@ -1,68 +1,42 @@
 import { useState, useEffect } from "react";
-import { pipelineStages, PipelineStage, Ticket } from "@/lib/data";
+import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay } from "@/lib/data";
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
-import { Plus, Flag, FolderOpen, Cog, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Flag, RefreshCw, Clock, Cog, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api, { fetchAllPages } from "@/lib/api";
+import { CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Spinner } from "@/components/ui/spinner";
 
 const stageIcons: Record<string, React.ReactNode> = {
   "Lead/Inquiry": <Flag className="h-4 w-4" />,
-  "Document Collection": <FolderOpen className="h-4 w-4" />,
-  "Processing": <Cog className="h-4 w-4" />,
+  "Renewal": <RefreshCw className="h-4 w-4" />,
+  "Follow Up": <Clock className="h-4 w-4" />,
   "Completed": <CheckCircle className="h-4 w-4" />,
-  "Discarded Leads": <XCircle className="h-4 w-4" />,
+  "Discarded Leads": <Trash2 className="h-4 w-4" />,
 };
 
 const stageColors: Record<string, string> = {
   "Lead/Inquiry": "text-primary border-primary/20 bg-primary/10",
-  "Document Collection": "text-warning border-warning/20 bg-warning/10",
-  "Processing": "text-info border-info/20 bg-info/10",
+  "Renewal": "text-warning border-warning/20 bg-warning/10",
+  "Follow Up": "text-info border-info/20 bg-info/10",
   "Completed": "text-success border-success/20 bg-success/10",
   "Discarded Leads": "text-muted-foreground border-border bg-muted",
 };
 
-const getTypeDisplay = (backendCode: string) => {
-    switch(backendCode) {
-        case "NEW": return "New Policy";
-        case "RENEWAL": return "Renewal";
-        case "ADJUSTMENT": return "Adjustment";
-        case "CANCELLATION": return "Cancellation";
-        default: return "Unknown";
-    }
-};
-
-const getStatusDisplay = (backendCode: string) => {
-    switch(backendCode) {
-        case "LEAD": return "Lead/Inquiry";
-        case "DOCS": return "Document Collection";
-        case "PROCESSING": return "Processing";
-        case "COMPLETED": return "Completed";
-        case "DISCARDED": return "Discarded Leads";
-        default: return "Unknown Phase";
-    }
-};
-
-const getStatusBackendCode = (displayCode: string) => {
-    switch(displayCode) {
-        case "Lead/Inquiry": return "LEAD";
-        case "Document Collection": return "DOCS";
-        case "Processing": return "PROCESSING";
-        case "Completed": return "COMPLETED";
-        case "Discarded Leads": return "DISCARDED";
-        default: return "LEAD";
-    }
-}
-
-const getPriorityDisplay = (backendCode: string) => {
-      switch(backendCode) {
-          case "LOW": return "Low";
-          case "MEDIUM": return "Medium";
-          case "HIGH": return "High";
-          default: return "Medium";
-      }
-};
+// Stages shown on the visual pipeline board (we exclude Discarded Leads here).
+const pipelineBoardStages: PipelineStage[] = [
+  "Lead/Inquiry",
+  "Renewal",
+  "Follow Up",
+  "Completed",
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatTicket = (t: any): Ticket => {
@@ -84,19 +58,20 @@ const formatTicket = (t: any): Ticket => {
         assignedTo: assignedToDisplay || "Unassigned",
         insuranceType: t.insurance_type || t.insuranceType || "",
         clientEmail: t.client_email || t.clientEmail || "",
+        createdAtRaw: t.created_at,
+        additionalNotes: t.additional_notes || "",
         // Note: For typing to work flawlessly we map `id` to string in UI
     } as any;
 };
-
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api, { fetchAllPages } from "@/lib/api";
-import { normalizeListResponse } from "@/lib/normalize";
 
 const PipelineView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+  const [selectedYear, setSelectedYear] = useState<string>("All");
+  const [selectedMonth, setSelectedMonth] = useState<string>("All");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   const { data: ticketsData, isLoading } = useQuery({
       queryKey: ["tickets"],
@@ -106,8 +81,10 @@ const PipelineView = () => {
   });
 
   useEffect(() => {
-    const safeTickets = normalizeListResponse(ticketsData);
-    setLocalTickets(safeTickets.map(formatTicket));
+    import("@/lib/normalize").then(({ normalizeListResponse }) => {
+      const safeTickets = normalizeListResponse(ticketsData);
+      setLocalTickets(safeTickets.map(formatTicket));
+    });
   }, [ticketsData]);
 
   const updateTicketMutation = useMutation({
@@ -115,7 +92,25 @@ const PipelineView = () => {
           const res = await api.post(`/api/tickets/${id}/change_status/`, { status });
           return res.data;
       },
-      onSuccess: () => {
+      onMutate: async ({ id, status }) => {
+          await queryClient.cancelQueries({ queryKey: ["tickets"] });
+          const previousTickets = queryClient.getQueryData(["tickets"]);
+          
+          queryClient.setQueryData(["tickets"], (old: any) => {
+              if (!old) return old;
+              return old.map((t: any) => 
+                  String(t.id) === String(id) ? { ...t, status: status } : t
+              );
+          });
+          
+          return { previousTickets };
+      },
+      onError: (err, variables, context: any) => {
+          if (context?.previousTickets) {
+              queryClient.setQueryData(["tickets"], context.previousTickets);
+          }
+      },
+      onSettled: () => {
           queryClient.invalidateQueries({ queryKey: ["tickets"] });
       }
   });
@@ -165,6 +160,31 @@ const PipelineView = () => {
     });
   };
 
+  const currentYear = new Date().getFullYear();
+  const allYears = Array.from({ length: (currentYear + 1) - 2015 }, (_, i) => String(currentYear + 1 - i));
+
+  const filteredTickets = localTickets.filter(t => {
+    if (!t.createdAtRaw) return false;
+    const date = new Date(t.createdAtRaw);
+    // If exact date selected, match on yyyy-mm-dd
+    if (selectedDate) {
+      const sd = selectedDate;
+      return (
+        date.getFullYear() === sd.getFullYear() &&
+        date.getMonth() === sd.getMonth() &&
+        date.getDate() === sd.getDate()
+      );
+    }
+    if (selectedYear !== "All" && date.getFullYear() !== parseInt(selectedYear)) {
+      return false;
+    }
+    if (selectedMonth !== "All") {
+      const monthIndex = parseInt(selectedMonth) - 1; // 1-12 to 0-11
+      if (date.getMonth() !== monthIndex) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
@@ -172,9 +192,65 @@ const PipelineView = () => {
           <h1 className="text-2xl font-bold">Project Pipeline</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Manage and track client requests through different stages</p>
         </div>
-        <Button onClick={() => navigate("/new-ticket")} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> New Ticket
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[120px] bg-background">
+              <SelectValue placeholder="All Years" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Years</SelectItem>
+              {allYears.map(y => (
+                <SelectItem key={y} value={y}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-[130px] bg-background">
+              <SelectValue placeholder="All Months" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Months</SelectItem>
+              {Array.from({ length: 12 }).map((_, idx) => {
+                const date = new Date(2000, idx);
+                const label = date.toLocaleString("default", { month: "long" });
+                const value = String(idx + 1).padStart(2, "0");
+                return <SelectItem key={value} value={String(idx + 1)}>{label}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="justify-start text-left font-normal min-w-[170px]"
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-auto p-0">
+              <div className="p-3">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d) => setSelectedDate(d)}
+                  initialFocus
+                />
+                <div className="flex justify-between gap-2 mt-3">
+                  <Button variant="secondary" size="sm" onClick={() => setSelectedDate(undefined)}>Clear</Button>
+                  <Button variant="secondary" size="sm" onClick={() => {
+                    // Reset year/month filters to All when picking exact date
+                    setSelectedYear("All");
+                    setSelectedMonth("All");
+                  }}>Ignore YM</Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button onClick={() => navigate("/new-ticket")} className="gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> New Ticket
+          </Button>
+        </div>
       </div>
 
       <DndContext
@@ -184,12 +260,19 @@ const PipelineView = () => {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start pb-4">
           {isLoading ? (
-            <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground">
-              Loading pipeline...
+            <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground gap-2">
+              <Spinner size="md" />
+              <span>Loading pipeline...</span>
             </div>
-          ) : pipelineStages.map((stage) => {
-            const stageTickets = localTickets.filter(t => t.stage === stage);
-            const colors = stageColors[stage].split(" ");
+          ) : pipelineBoardStages.map((stage) => {
+            let stageTickets = filteredTickets.filter(t => t.stage === stage);
+            
+            if (stage === "Lead/Inquiry") {
+              stageTickets = stageTickets.filter(t => t.type === "New Policy");
+            }
+
+            const colorString = stageColors[stage] || "text-muted-foreground border-border bg-muted";
+            const colors = colorString.split(" ");
             const textColor = colors[0];
             const borderColor = colors[1];
             const bgColor = colors[2];

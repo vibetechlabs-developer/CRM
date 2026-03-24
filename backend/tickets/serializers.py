@@ -7,6 +7,9 @@ class TicketSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.first_name', read_only=True)
     client_last_name = serializers.CharField(source='client.last_name', read_only=True)
     client_email = serializers.EmailField(source='client.email', read_only=True)
+    client_phone = serializers.CharField(source='client.phone', read_only=True)
+    client_address = serializers.CharField(source='client.address', read_only=True)
+    client_occupation = serializers.CharField(source='client.occupation', read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
     assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True)
 

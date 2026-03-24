@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar, Edit2, Eye } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { pipelineStages, priorities, type PipelineStage, type Priority, type TicketRow } from "@/lib/data";
 
 type Props = {
@@ -29,7 +30,58 @@ export function TicketList({
   onEdit,
 }: Props) {
   if (isLoading) {
-    return <p className="text-muted-foreground">Loading tickets...</p>;
+    return (
+      <Card className="border shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-secondary/50">
+                <th className="text-left p-4 w-[250px]"><Skeleton className="h-4 w-24" /></th>
+                <th className="text-left p-4"><Skeleton className="h-4 w-20" /></th>
+                <th className="text-left p-4 hidden md:table-cell"><Skeleton className="h-4 w-20" /></th>
+                <th className="text-left p-4 hidden sm:table-cell"><Skeleton className="h-4 w-16" /></th>
+                <th className="text-left p-4 hidden lg:table-cell"><Skeleton className="h-4 w-24" /></th>
+                <th className="text-left p-4 hidden md:table-cell"><Skeleton className="h-4 w-20" /></th>
+                <th className="w-16 p-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-b last:border-0 hover:bg-transparent">
+                  <td className="p-4">
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-5 w-20 rounded-md" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </td>
+                  <td className="p-4 hidden md:table-cell"><Skeleton className="h-8 w-[150px] rounded-full" /></td>
+                  <td className="p-4 hidden sm:table-cell"><Skeleton className="h-8 w-[110px] rounded-full" /></td>
+                  <td className="p-4 hidden lg:table-cell">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  </td>
+                  <td className="p-4 hidden md:table-cell"><Skeleton className="h-4 w-24" /></td>
+                  <td className="p-4">
+                    <div className="flex justify-end gap-2">
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    );
   }
 
   return (

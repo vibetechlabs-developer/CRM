@@ -53,14 +53,8 @@ const Login = () => {
       <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
 
         <div className="text-center mb-8">
-          <div className="relative inline-block mb-5">
-            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
-            <div className="relative h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg mx-auto">
-              <Shield className="h-8 w-8 text-primary-foreground stroke-[1.5]" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">InsuranceCRM</h1>
-          <p className="text-sm text-muted-foreground mt-2 font-medium tracking-wide uppercase">Management Console V2.0</p>
+          <img src="/logo.png" alt="Logo" className="h-24 mx-auto object-contain mb-4" />
+          <p className="text-sm text-muted-foreground font-medium tracking-wide uppercase">Management Console V2.0</p>
         </div>
 
         <Card className="border shadow-xl shadow-primary/5 overflow-hidden">

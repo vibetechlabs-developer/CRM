@@ -4,9 +4,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from rest_framework import filters
 
 from users.models import User
-from common.permissions import IsAdminOrAssignedAgent, IsAdminRole
+from common.permissions import IsAdminOrAssignedAgent, IsAdminRole, DenyDeleteForManager
 from .models import Ticket, TicketActivity, Note, Notification
 from .serializers import (
     TicketSerializer,
@@ -20,18 +21,22 @@ from .services import auto_assign_ticket
 class TicketViewSet(ModelViewSet):
 
     serializer_class = TicketSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, DenyDeleteForManager]
 
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    search_fields = ['ticket_no', 'client__first_name', 'client__last_name', 'client__email']
 
-    filterset_fields = [
-        'status',
-        'ticket_type',
-        'assigned_to',
-        'client',
-        'insurance_type',
-        'source'
-    ]
+    filterset_fields = {
+        'status': ['exact'],
+        'ticket_type': ['exact'],
+        'assigned_to': ['exact'],
+        'client': ['exact'],
+        'insurance_type': ['exact'],
+        'priority': ['exact'],
+        'source': ['exact'],
+        'created_at': ['date', 'year', 'month'],
+    }
 
     # Permission control
     def get_permissions(self):
@@ -43,7 +48,7 @@ class TicketViewSet(ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
-        if getattr(user, "role", None) == "ADMIN":
+        if getattr(user, "role", None) in ("ADMIN", "MANAGER"):
             return qs
         # AGENT: only their assigned tickets
         return qs.filter(assigned_to=user)
@@ -84,6 +89,88 @@ class TicketViewSet(ModelViewSet):
         # NEW tickets: auto-assign if unassigned (signal also does this, but keep deterministic here)
         if ticket.ticket_type == "NEW" and not ticket.assigned_to_id:
             auto_assign_ticket(ticket)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        from django.db.models import Count
+        from django.utils import timezone
+        import datetime
+        from clients.models import Client
+
+        qs = self.get_queryset()
+        
+        total_tickets = qs.count()
+        completed_tickets = qs.filter(status='COMPLETED').count()
+        high_priority = qs.filter(priority='HIGH').count()
+        active_tickets = qs.exclude(status__in=['COMPLETED', 'DISCARDED_LEADS']).count()
+        total_clients = Client.objects.count()
+
+        now = timezone.now()
+        def get_month_start(dt, offset):
+            m = dt.month - 1 + offset
+            y = dt.year + m // 12
+            m = m % 12 + 1
+            return dt.replace(year=y, month=m, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        start_this = get_month_start(now, 0)
+        start_prev = get_month_start(now, -1)
+        start_next = get_month_start(now, 1)
+
+        created_this = qs.filter(created_at__gte=start_this, created_at__lt=start_next)
+        created_prev = qs.filter(created_at__gte=start_prev, created_at__lt=start_this)
+
+        tickets_this_month = created_this.count()
+        tickets_prev_month = created_prev.count()
+        completed_this = created_this.filter(status='COMPLETED').count()
+        completed_prev = created_prev.filter(status='COMPLETED').count()
+        high_this = created_this.filter(priority='HIGH').count()
+        high_prev = created_prev.filter(priority='HIGH').count()
+
+        def pct_dict(curr, prev):
+            if prev <= 0:
+                fmt = "0%" if curr <= 0 else "+100%"
+                return {"label": fmt, "positive": True}
+            val = round(((curr - prev) / prev) * 100)
+            return {"label": f"+{val}%" if val >= 0 else f"{val}%", "positive": val >= 0}
+
+        month_stats = {
+            "ticketsDelta": pct_dict(tickets_this_month, tickets_prev_month),
+            "completedDelta": pct_dict(completed_this, completed_prev),
+            "highDelta": pct_dict(high_this, high_prev),
+        }
+
+        status_counts = list(qs.values('status').annotate(count=Count('id')))
+        type_counts = list(qs.values('ticket_type').annotate(count=Count('id')))
+        priority_counts = list(qs.values('priority').annotate(count=Count('id')))
+
+        buckets = []
+        for i in range(5, -1, -1):
+            d_start = get_month_start(now, -i)
+            d_end = get_month_start(now, -i + 1)
+            bucket_qs = qs.filter(created_at__gte=d_start, created_at__lt=d_end)
+            buckets.append({
+                "key": d_start.strftime("%Y-%m"),
+                "month": d_start.strftime("%b"),
+                "tickets": bucket_qs.count(),
+                "completed": bucket_qs.filter(status='COMPLETED').count()
+            })
+
+        recent_qs = qs.order_by('-created_at')[:5]
+        recent_tickets = self.get_serializer(recent_qs, many=True).data
+
+        return Response({
+            "totalTickets": total_tickets,
+            "totalClients": total_clients,
+            "completedTickets": completed_tickets,
+            "highPriority": high_priority,
+            "activeTickets": active_tickets,
+            "monthStats": month_stats,
+            "statusCounts": status_counts,
+            "typeCounts": type_counts,
+            "priorityCounts": priority_counts,
+            "monthlyTrend": buckets,
+            "recentTickets": recent_tickets
+        })
 
     # Custom API: Change Ticket Status
     @action(detail=True, methods=['post'])

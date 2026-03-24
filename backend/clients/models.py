@@ -12,6 +12,8 @@ class Client(models.Model):
     email = models.EmailField()
     phone = models.CharField(max_length=15)
 
+    occupation = models.CharField(max_length=120, blank=True)
+
     address = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

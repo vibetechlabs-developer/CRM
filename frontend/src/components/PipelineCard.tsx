@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { pipelineStages, priorities } from "@/lib/data";
+import { Textarea } from "@/components/ui/textarea";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
 
 interface PipelineCardProps {
   ticket: Ticket;
@@ -29,6 +32,46 @@ const typeColors: Record<string, string> = {
 
 export function PipelineCard({ ticket }: PipelineCardProps) {
   const [actionType, setActionType] = useState<"view" | "edit" | null>(null);
+  const [notes, setNotes] = useState(ticket.additionalNotes || ticket.notes || "");
+  const queryClient = useQueryClient();
+
+  const updateNotesMutation = useMutation({
+    mutationFn: async (newNotes: string) => {
+      const res = await api.patch(`/api/tickets/${ticket.id}/`, { additional_notes: newNotes });
+      return res.data;
+    },
+    onMutate: async (newNotes) => {
+      await queryClient.cancelQueries({ queryKey: ["tickets"] });
+      const previousTickets = queryClient.getQueryData(["tickets"]);
+      
+      queryClient.setQueryData(["tickets"], (old: any) => {
+        if (!old) return old;
+        return old.map((t: any) => 
+          String(t.id) === String(ticket.id) ? { ...t, additional_notes: newNotes } : t
+        );
+      });
+      
+      return { previousTickets };
+    },
+    onError: (err, newNotes, context: any) => {
+      if (context?.previousTickets) {
+        queryClient.setQueryData(["tickets"], context.previousTickets);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    }
+  });
+
+  const handleSave = () => {
+    if (notes !== (ticket.additionalNotes || ticket.notes || "")) {
+      updateNotesMutation.mutate(notes, {
+        onSuccess: () => setActionType(null)
+      });
+    } else {
+      setActionType(null);
+    }
+  };
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ticket.id,
@@ -96,6 +139,27 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
           </span>
         </div>
 
+        <div 
+          className="mb-4 relative" 
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Textarea
+            placeholder="Add notes..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={handleSave}
+            className="text-xs min-h-[60px] resize-none bg-secondary/30 border-muted placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/50"
+          />
+          {updateNotesMutation.isPending && (
+            <div className="absolute right-2 bottom-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mt-auto pt-3 border-t">
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6 border shadow-sm">
@@ -140,6 +204,12 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
                     </span>
                   </span>
                 </div>
+                {(ticket.additionalNotes || ticket.notes) && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <span className="text-sm font-medium text-right text-muted-foreground">Notes</span>
+                    <span className="text-sm col-span-3 whitespace-pre-wrap">{ticket.additionalNotes || ticket.notes}</span>
+                  </div>
+                )}
               </>
             ) : actionType === "edit" ? (
               <>
@@ -165,12 +235,25 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Notes</Label>
+                  <Textarea 
+                    placeholder="Add notes for this ticket..." 
+                    value={notes} 
+                    onChange={(e) => setNotes(e.target.value)} 
+                    className="min-h-[100px]"
+                  />
+                </div>
               </>
             ) : null}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActionType(null)}>Close</Button>
-            {actionType === "edit" && <Button onClick={() => setActionType(null)}>Save changes</Button>}
+            <Button variant="outline" onClick={() => { setActionType(null); setNotes(ticket.additionalNotes || ticket.notes || ""); }}>Close</Button>
+            {actionType === "edit" && (
+              <Button onClick={handleSave} disabled={updateNotesMutation.isPending}>
+                {updateNotesMutation.isPending ? "Saving..." : "Save changes"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -36,7 +36,7 @@ class IsAdminOrAssignedAgent(BasePermission):
         user = request.user
         if not user or not user.is_authenticated:
             return False
-        if getattr(user, "role", None) == "ADMIN":
+        if getattr(user, "role", None) in ("ADMIN", "MANAGER"):
             return True
 
         # Ticket itself
@@ -49,4 +49,38 @@ class IsAdminOrAssignedAgent(BasePermission):
             return ticket.assigned_to_id == user.id
 
         return False
+
+
+class IsAdminOrManagerNoDelete(BasePermission):
+    """
+    ADMIN: full access
+    MANAGER: all but DELETE
+    Others: no access
+    """
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+        role = getattr(user, "role", None)
+        if role == "ADMIN":
+            return True
+        if role == "MANAGER":
+            return request.method != "DELETE"
+        return False
+
+
+class DenyDeleteForManager(BasePermission):
+    """
+    Supplemental permission to be combined with IsAuthenticated, etc.
+    Denies DELETE actions when user.role == MANAGER.
+    """
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+        if request.method == "DELETE" and getattr(user, "role", None) == "MANAGER":
+            return False
+        return True
 

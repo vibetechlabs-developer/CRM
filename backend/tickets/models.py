@@ -9,16 +9,17 @@ class Ticket(models.Model):
     TICKET_TYPES = [
         ("NEW", "New Policy"),
         ("RENEWAL", "Renewal"),
-        ("ADJUSTMENT", "Adjustment"),
+        ("CHANGES", "Changes"),
         ("CANCELLATION", "Cancellation"),
     ]
 
     STATUS_CHOICES = [
-        ("LEAD", "Lead"),
-        ("DOCS", "Documents Pending"),
-        ("PROCESSING", "Processing"),
+        ("LEAD", "Lead/Inquiry"),
+        ("RENEWAL", "Renewal"),
+        ("FOLLOW_UP", "Follow Up"),
+        ("CHANGES", "Changes"),
         ("COMPLETED", "Completed"),
-        ("DISCARDED", "Discarded"),
+        ("DISCARDED", "Discarded Leads"),
     ]
 
     PRIORITY_CHOICES = [
@@ -67,7 +68,7 @@ class Ticket(models.Model):
 
     insurance_type = models.CharField(max_length=50)
 
-    details = models.TextField()
+    details = models.JSONField(default=dict, blank=True)
     additional_notes = models.TextField(blank=True)
 
     assigned_to = models.ForeignKey(
@@ -96,50 +97,50 @@ class Ticket(models.Model):
     def save(self, *args, **kwargs):
         """
         Generate `ticket_no` safely under concurrency.
-
-        The old implementation queried the last row and then incremented in Python,
-        which can race under concurrent requests and violate `unique=True`.
+        Also trigger WhatsApp notifications on creation and completion.
         """
-        if self.ticket_no:
-            return super().save(*args, **kwargs)
-
-        # Only auto-generate on initial create; leave updates unchanged.
-        if self.pk:
-            return super().save(*args, **kwargs)
-
-        using = kwargs.get("using") or router.db_for_write(self.__class__, instance=self)
-        prefix = "INS-"
-        width = 5
-
-        # Retry handles the "no existing rows" case where select_for_update can't lock anything yet.
-        for _attempt in range(5):
+        is_new = self.pk is None
+        old_status = None
+        if not is_new:
             try:
-                with transaction.atomic(using=using):
-                    last_ticket = (
-                        Ticket.objects.using(using)
-                        .select_for_update()
-                        .filter(ticket_no__startswith=prefix)
-                        .order_by("-ticket_no")
-                        .first()
-                    )
+                old_status = Ticket.objects.get(pk=self.pk).status
+            except Ticket.DoesNotExist:
+                pass
 
-                    if last_ticket and last_ticket.ticket_no:
-                        try:
-                            last_number = int(last_ticket.ticket_no.split("-", 1)[1])
-                        except (IndexError, ValueError):
-                            last_number = 0
-                        next_number = last_number + 1
-                    else:
-                        next_number = 1
+        if not self.ticket_no and is_new:
+            prefix = "INS-"
+            width = 5
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT nextval('ticket_no_seq')")
+                next_number = cursor.fetchone()[0]
+            self.ticket_no = f"{prefix}{next_number:0{width}d}"
 
-                    self.ticket_no = f"{prefix}{next_number:0{width}d}"
-                    return super().save(*args, **kwargs)
-            except IntegrityError:
-                # Another concurrent transaction grabbed the same number first; retry.
-                self.ticket_no = ""
-                continue
+        result = super().save(*args, **kwargs)
 
-        raise IntegrityError("Failed to generate a unique ticket number after multiple attempts.")
+        # Handle Notifications safely (no blocking crash)
+        self._trigger_whatsapp_notifications(is_new, old_status)
+        return result
+
+    def _trigger_whatsapp_notifications(self, is_new, old_status):
+        import logging
+        from whatsapp.services import send_whatsapp_message
+        
+        logger = logging.getLogger(__name__)
+        
+        # We only send if the client has a phone number
+        if not getattr(self, "client", None) or not self.client.phone:
+            return
+
+        try:
+            if is_new:
+                msg = f"Hello {self.client.first_name},\n\nWe have received your request. Your ticket number is *{self.ticket_no}* ({self.get_ticket_type_display()}).\nWe will get back to you shortly."
+                send_whatsapp_message(self.client.phone, msg)
+            elif old_status and old_status != self.status and self.status == "COMPLETED":
+                msg = f"Hello {self.client.first_name},\n\nYour ticket *{self.ticket_no}* has been marked as COMPLETED. If you have any further questions, please let us know."
+                send_whatsapp_message(self.client.phone, msg)
+        except Exception as e:
+            logger.error(f"Failed to send WhatsApp notification for ticket {self.ticket_no}: {e}")
 
     def __str__(self):
         return self.ticket_no

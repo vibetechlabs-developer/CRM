@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { fetchAllPages } from "@/lib/api";
 import {
@@ -25,13 +25,31 @@ import { TicketList } from "@/components/tickets/TicketList";
 import { TicketGrid } from "@/components/tickets/TicketGrid";
 import { TicketActionModals } from "@/components/tickets/TicketActionModals";
 import { normalizeListResponse } from "@/lib/normalize";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 const typeColors: Record<string, string> = {
   "New Policy": "text-primary border-primary/20 bg-primary/5",
   "Renewal": "text-accent border-accent/20 bg-accent/5",
   "Adjustment": "text-purple-500 border-purple-500/20 bg-purple-500/5",
   "Cancellation": "text-destructive border-destructive/20 bg-destructive/5",
+  "Changes": "text-purple-500 border-purple-500/20 bg-purple-500/5",
+  "Customer Issue": "text-purple-500 border-purple-500/20 bg-purple-500/5",
 };
+
+function useDebouncedValue<T>(value: T, delayMs = 250) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(handle);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 const stageStyles: Record<string, string> = {
   "Lead/Inquiry": "bg-primary/10 text-primary border-primary/20",
@@ -50,9 +68,11 @@ const priorityStyles: Record<Priority, string> = {
 const Tickets = () => {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
   // Modal states
@@ -62,10 +82,27 @@ const Tickets = () => {
 
   const navigate = useNavigate();
 
-  const { data: ticketsData = [], isLoading } = useQuery({
-    queryKey: ["tickets"],
+  const { data, isLoading } = useQuery({
+    queryKey: ["tickets", page, debouncedSearch, stageFilter, priorityFilter],
     queryFn: async () => {
-      return await fetchAllPages("/api/tickets/");
+      const statusParam = stageFilter !== "all" ? getStatusBackendCode(stageFilter) : undefined;
+      const priorityParam = priorityFilter !== "all" ? getPriorityBackendCode(priorityFilter) : undefined;
+      
+      const response = await api.get("/api/tickets/", {
+        params: {
+          page,
+          search: debouncedSearch || undefined,
+          status: statusParam,
+          priority: priorityParam,
+          ordering: "-created_at"
+        }
+      });
+      
+      const payload = response.data;
+      const rawItems = Array.isArray(payload) ? payload : (payload.results || []);
+      const totalCount = !Array.isArray(payload) && typeof payload.count === "number" ? payload.count : rawItems.length;
+      
+      return { items: rawItems, totalCount };
     },
   });
 
@@ -74,9 +111,30 @@ const Tickets = () => {
       const response = await api.patch(`/api/tickets/${id}/`, data);
       return response.data;
     },
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ["tickets"] });
+      
+      queryClient.setQueriesData({ queryKey: ["tickets"] }, (old: any) => {
+        if (!old) return old;
+        if (old.items) {
+          return { ...old, items: old.items.map((t: any) => String(t.id) === String(id) ? { ...t, ...data } : t) };
+        }
+        if (Array.isArray(old)) {
+          return old.map((t: any) => String(t.id) === String(id) ? { ...t, ...data } : t);
+        }
+        return old;
+      });
+      
+      return {};
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tickets"] });
       setModalType(null); // Close modal on success if editing
+    },
+    onError: (err, variables, context: any) => {
+      // optimistic rollback omitted for simplicity on paginated queries
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
     },
   });
 
@@ -99,12 +157,38 @@ const Tickets = () => {
       const res = await api.post(`/api/tickets/${selectedTicketId}/notes/`, { content: text });
       return res.data;
     },
+    onMutate: async () => {
+      const text = noteText.trim();
+      if (!text) return;
+      await queryClient.cancelQueries({ queryKey: ["ticket-notes", selectedTicketId] });
+      const previousNotes = queryClient.getQueryData(["ticket-notes", selectedTicketId]);
+      
+      queryClient.setQueryData(["ticket-notes", selectedTicketId], (old: any) => {
+        const newNote = {
+          id: Date.now(), // optimistic ID
+          content: text,
+          created_at: new Date().toISOString(),
+          agent_name: user?.name || user?.username || "You",
+          agent: user?.id
+        };
+        return [newNote, ...(Array.isArray(old) ? old : [])];
+      });
+      
+      return { previousNotes };
+    },
     onSuccess: () => {
       setNoteText("");
+    },
+    onError: (err, variables, context: any) => {
+      if (context?.previousNotes) {
+        queryClient.setQueryData(["ticket-notes", selectedTicketId], context.previousNotes);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["ticket-notes", selectedTicketId] });
     },
   });
-  const rawTickets: BackendTicket[] = normalizeListResponse<BackendTicket>(ticketsData);
+  const rawTickets: BackendTicket[] = useMemo(() => data?.items || [], [data]);
   const formattedTickets = useMemo(() => rawTickets.map(formatBackendTicket), [rawTickets]);
 
   const { data: usersData = [] } = useQuery({
@@ -118,14 +202,16 @@ const Tickets = () => {
 
   const agents = usersData.filter((u) => u.role === "AGENT");
 
-  const filtered = formattedTickets.filter((t) => {
-    const matchSearch =
-      t.clientName.toLowerCase().includes(search.toLowerCase()) ||
-      String(t.ticket_no).toLowerCase().includes(search.toLowerCase());
-    const matchStage = stageFilter === "all" || String(t.stage) === stageFilter;
-    const matchPriority = priorityFilter === "all" || String(t.priority) === priorityFilter;
-    return matchSearch && matchStage && matchPriority;
-  });
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, stageFilter, priorityFilter]);
+
+  const totalCount = data?.totalCount || 0;
+  const itemsPerPage = 10;
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+  const paginatedTickets = formattedTickets;
+  const filtered = formattedTickets;
 
   const handleStageChange = (ticketId: number, newStage: PipelineStage) => {
     updateTicketMutation.mutate({ id: ticketId, data: { status: getStatusBackendCode(newStage) } });
@@ -133,6 +219,13 @@ const Tickets = () => {
 
   const handlePriorityChange = (ticketId: number, newPriority: Priority) => {
     updateTicketMutation.mutate({ id: ticketId, data: { priority: getPriorityBackendCode(newPriority) } });
+  };
+
+  const handleDiscard = (ticketId: number) => {
+    updateTicketMutation.mutate({
+      id: ticketId,
+      data: { status: "DISCARDED" },
+    });
   };
 
   const openModal = (ticket: TicketRow, type: "view" | "edit") => {
@@ -200,22 +293,55 @@ const Tickets = () => {
       </div>
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{filtered.length}</span> tickets found
+        <span className="font-medium text-foreground">{totalCount}</span> tickets found
       </div>
 
       {/* Table View */}
       {viewMode === "list" ? (
-        <TicketList
-          tickets={filtered}
-          isLoading={isLoading}
-          typeColors={typeColors}
-          stageStyles={stageStyles}
-          priorityStyles={priorityStyles}
-          onStageChange={handleStageChange}
-          onPriorityChange={handlePriorityChange}
-          onView={(t) => openModal(t, "view")}
-          onEdit={(t) => openModal(t, "edit")}
-        />
+        <>
+          <TicketList
+            tickets={paginatedTickets}
+            isLoading={isLoading}
+            typeColors={typeColors}
+            stageStyles={stageStyles}
+            priorityStyles={priorityStyles}
+            onStageChange={handleStageChange}
+            onPriorityChange={handlePriorityChange}
+            onView={(t) => openModal(t, "view")}
+            onEdit={(t) => openModal(t, "edit")}
+          />
+          {totalPages > 1 && (
+            <Pagination className="mt-4">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page > 1) setPage(page - 1);
+                    }}
+                    className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="text-sm px-4">
+                    Page {page} of {totalPages}
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page < totalPages) setPage(page + 1);
+                    }}
+                    className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
       ) : (
         /* Grid View */
         <TicketGrid
@@ -251,6 +377,8 @@ const Tickets = () => {
           })
         }
         isSaving={updateTicketMutation.isPending}
+        onDiscard={handleDiscard}
+        isDiscarding={updateTicketMutation.isPending}
       />
     </div>
   );

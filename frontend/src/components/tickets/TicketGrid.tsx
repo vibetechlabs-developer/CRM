@@ -2,8 +2,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Edit2, Eye } from "lucide-react";
+import { Edit2, Eye, FolderOpen } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { pipelineStages, priorities, type PipelineStage, type Priority, type TicketRow } from "@/lib/data";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { useNavigate } from "react-router-dom";
 
 type Props = {
   tickets: TicketRow[];
@@ -29,11 +32,50 @@ export function TicketGrid({
   onEdit,
 }: Props) {
   if (isLoading) {
-    return <p className="text-muted-foreground col-span-full">Loading tickets...</p>;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Card key={i} className="border shadow-sm flex flex-col h-[230px]">
+            <div className="p-4 flex-1">
+              <div className="flex justify-between mb-4">
+                <Skeleton className="h-6 w-16 rounded-md" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-6 w-6 rounded-md" />
+                  <Skeleton className="h-6 w-6 rounded-md" />
+                </div>
+              </div>
+              <Skeleton className="h-5 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-1/2 mb-6" />
+              <div className="space-y-3">
+                <div className="flex justify-between"><Skeleton className="h-4 w-12" /><Skeleton className="h-4 w-20" /></div>
+                <div className="flex justify-between"><Skeleton className="h-4 w-12" /><Skeleton className="h-6 w-24 rounded-full" /></div>
+                <div className="flex justify-between"><Skeleton className="h-4 w-12" /><Skeleton className="h-6 w-20 rounded-full" /></div>
+              </div>
+            </div>
+            <div className="p-3 border-t bg-secondary/30 flex justify-between">
+              <div className="flex gap-2 items-center"><Skeleton className="h-5 w-5 rounded-full" /><Skeleton className="h-4 w-16" /></div>
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
   }
 
+  const navigate = useNavigate();
+
   if (tickets.length === 0) {
-    return <p className="text-muted-foreground col-span-full">No tickets found.</p>;
+    return (
+      <div className="col-span-full">
+        <EmptyState
+          icon={FolderOpen}
+          title="No tickets found"
+          description="You don't have any tickets yet. Create your first ticket to get started."
+          actionLabel="Create Ticket"
+          onAction={() => navigate('/new-ticket')}
+        />
+      </div>
+    );
   }
 
   return (

@@ -3,6 +3,7 @@ import api from "@/lib/api";
 
 interface AuthContextType {
   isLoggedIn: boolean;
+  isLoading: boolean;
   user: { id?: number; username?: string; name: string; email: string; role: "ADMIN" | "AGENT" | string } | null;
   login: (userDetails?: { id?: number; username?: string; name: string; email: string; role: "ADMIN" | "AGENT" | string }) => void;
   logout: () => void;
@@ -19,11 +20,13 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<{ id?: number; username?: string; name: string; email: string; role: "ADMIN" | "AGENT" | string } | null>(null);
 
   const login = (userDetails?: { id?: number; username?: string; name: string; email: string; role: "ADMIN" | "AGENT" | string }) => {
     setUser(userDetails || { name: "User", email: "user@example.com", role: "AGENT" });
     setIsLoggedIn(true);
+    setIsLoading(false);
   };
 
   const logout = async () => {
@@ -34,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     setIsLoggedIn(false);
+    setIsLoading(false);
   };
 
   const reloadMe = async () => {
@@ -51,17 +55,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       setUser(null);
       setIsLoggedIn(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Load current user on refresh using cookie-based auth
   useEffect(() => {
     if (!user) reloadMe();
+    else setIsLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, reloadMe }}>
+    <AuthContext.Provider value={{ isLoggedIn, isLoading, user, login, logout, reloadMe }}>
       {children}
     </AuthContext.Provider>
   );

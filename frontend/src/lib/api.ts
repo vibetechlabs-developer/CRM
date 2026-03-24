@@ -36,7 +36,7 @@ api.interceptors.response.use(
       } catch (err) {
         // Refresh expired/invalid -> send user to login
         if (window.location.pathname !== "/login") {
-          window.location.href = "/login";
+          window.dispatchEvent(new Event("auth:unauthorized"));
         }
 
         return Promise.reject(err);

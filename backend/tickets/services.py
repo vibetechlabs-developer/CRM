@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Max, F
 from users.models import User
 from .models import Ticket, TicketActivity, Notification
 
@@ -20,13 +20,15 @@ def auto_assign_ticket(ticket):
                     filter=Q(
                         assigned_tickets__status__in=[
                             "LEAD",
-                            "DOCS",
-                            "PROCESSING"
+                            "RENEWAL",
+                            "FOLLOW_UP",
+                            "CHANGES"
                         ]
                     )
-                )
+                ),
+                last_assigned=Max("assigned_tickets__created_at")
             )
-            .order_by("active_ticket_count")
+            .order_by("active_ticket_count", F("last_assigned").asc(nulls_first=True))
         )
 
     best_agent = None

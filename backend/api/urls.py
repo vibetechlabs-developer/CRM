@@ -6,7 +6,13 @@ from clients.views import ClientViewSet
 from policies.views import PolicyViewSet
 from tickets.views import TicketViewSet
 from tickets.views import NotificationViewSet
-from tickets.insurance_form_views import submit_insurance_form
+from tickets.insurance_form_views import (
+    submit_insurance_form,
+    submit_renewal_form,
+    submit_changes_form,
+    submit_cancellation_form,
+    submit_customer_issue_form,
+)
 
 router = DefaultRouter()
 router.register(r'clients', ClientViewSet, basename="clients")
@@ -21,7 +27,14 @@ urlpatterns = [
     path("auth/logout/", LogoutView.as_view(), name="logout"),
 
     path("insurance-form/", submit_insurance_form, name="insurance-form"),
+    # Public-facing "New Business" form URL using the same handler as the main insurance form
+    path("forms/new-business/", submit_insurance_form, name="new-business-form"),
+    path("forms/renewal/", submit_renewal_form, name="renewal-form"),
+    path("forms/changes/", submit_changes_form, name="changes-form"),
+    path("forms/cancellation/", submit_cancellation_form, name="cancellation-form"),
+    path("forms/customer-issue/", submit_customer_issue_form, name="customer-issue-form"),
     
     path("", include(router.urls)),
     path("users/", include("users.urls")),
+    path("whatsapp/", include("whatsapp.urls")),
 ]

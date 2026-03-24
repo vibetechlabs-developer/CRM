@@ -4,152 +4,60 @@ import { FileText, Users, CheckCircle, AlertTriangle, TrendingUp, Clock, BarChar
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartPie, Pie, Cell, LineChart, Line } from "recharts";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import api, { fetchAllPages } from "@/lib/api";
-import { isFiniteNumber, normalizeListResponse } from "@/lib/normalize";
+import api from "@/lib/api";
+import { isFiniteNumber } from "@/lib/normalize";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { motion, type Variants } from "framer-motion";
+import { ErrorBoundary } from "react-error-boundary";
+import { Button } from "@/components/ui/button";
 
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
 
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 350, damping: 25 } }
+};
+
+const ChartFallback = ({ error, resetErrorBoundary }: any) => (
+  <div className="flex flex-col items-center justify-center p-6 h-[250px] bg-secondary/20 rounded-xl border border-dashed border-destructive/30">
+    <AlertTriangle className="h-8 w-8 text-destructive mb-2" />
+    <p className="text-sm font-medium text-destructive">Failed to load chart</p>
+    <p className="text-xs text-muted-foreground mt-1 text-center truncate w-full max-w-[200px]" title={error.message}>{error.message}</p>
+    <Button variant="outline" size="sm" onClick={resetErrorBoundary} className="mt-4">Retry</Button>
+  </div>
+);
 
 const Dashboard = () => {
-  const { data: rawTickets, isLoading: isLoadingTickets } = useQuery({
-      queryKey: ["tickets"],
+  const { data: statsData, isLoading: isLoadingStats } = useQuery({
+      queryKey: ["tickets-stats"],
       queryFn: async () => {
-          return await fetchAllPages("/api/tickets/");
+          const res = await api.get("/api/tickets/stats/");
+          return res.data;
       }
   });
 
-  const { data: clientsData = [], isLoading: isLoadingClients } = useQuery({
-      queryKey: ["clients"],
-      queryFn: async () => {
-          const res = await api.get("/api/clients/");
-          return Array.isArray(res.data) ? res.data : (res.data?.results || []);
-      }
-  });
+  const {
 
-  const safeRawTickets = normalizeListResponse<BackendTicket>(rawTickets);
-  const tickets = safeRawTickets.map((t) => formatBackendTicket(t));
-  const clients = Array.isArray(clientsData) ? clientsData : [];
-  const totalTickets = tickets.length;
-  const totalClients = clients.length;
-  const completedTickets = tickets.filter(t => t.stage === "Completed").length;
-  const highPriority = tickets.filter(t => t.priority === "High").length;
-  const activeTickets = tickets.filter(t => t.stage !== "Completed" && t.stage !== "Discarded Leads").length;
-
-  const todayLabel = useMemo(() => {
-    try {
-      return new Date().toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
-    } catch {
-      return "";
-    }
-  }, []);
-
-  const monthStats = useMemo(() => {
-    const now = new Date();
-    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-    const isInRange = (d: Date, start: Date, end: Date) => d >= start && d < end;
-
-    const createdDates = safeRawTickets
-      .map((t) => (t?.created_at ? new Date(t.created_at) : null))
-      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
-
-    const completedDates = safeRawTickets
-      .filter((t) => t?.status === "COMPLETED")
-      .map((t) => (t?.created_at ? new Date(t.created_at) : null))
-      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
-
-    const highPriorityDates = safeRawTickets
-      .filter((t) => t?.priority === "HIGH")
-      .map((t) => (t?.created_at ? new Date(t.created_at) : null))
-      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()));
-
-    const ticketsThisMonth = createdDates.filter((d) => isInRange(d, startOfThisMonth, startOfNextMonth)).length;
-    const ticketsPrevMonth = createdDates.filter((d) => isInRange(d, startOfPrevMonth, startOfThisMonth)).length;
-
-    const completedThisMonth = completedDates.filter((d) => isInRange(d, startOfThisMonth, startOfNextMonth)).length;
-    const completedPrevMonth = completedDates.filter((d) => isInRange(d, startOfPrevMonth, startOfThisMonth)).length;
-
-    const highThisMonth = highPriorityDates.filter((d) => isInRange(d, startOfThisMonth, startOfNextMonth)).length;
-    const highPrevMonth = highPriorityDates.filter((d) => isInRange(d, startOfPrevMonth, startOfThisMonth)).length;
-
-    const fmtDelta = (current: number, prev: number) => {
-      if (prev <= 0) {
-        if (current <= 0) return { label: "0%", positive: true };
-        return { label: "+100%", positive: true };
-      }
-      const pct = ((current - prev) / prev) * 100;
-      const rounded = Math.round(pct);
-      return { label: `${rounded >= 0 ? "+" : ""}${rounded}%`, positive: rounded >= 0 };
-    };
-
-    return {
-      ticketsDelta: fmtDelta(ticketsThisMonth, ticketsPrevMonth),
-      completedDelta: fmtDelta(completedThisMonth, completedPrevMonth),
-      highDelta: fmtDelta(highThisMonth, highPrevMonth),
-    };
-  }, [safeRawTickets]);
-
-  const stats = [
-    { title: "Total Tickets", value: totalTickets, icon: FileText, color: "text-primary", bg: "bg-primary/10", change: monthStats.ticketsDelta.label, positive: monthStats.ticketsDelta.positive },
-    // Client month-over-month requires client created_at which isn't guaranteed in all payloads; keep as neutral for now.
-    { title: "Total Clients", value: totalClients, icon: Users, color: "text-accent", bg: "bg-accent/10", change: "—", positive: true },
-    { title: "Completed", value: completedTickets, icon: CheckCircle, color: "text-success", bg: "bg-success/10", change: monthStats.completedDelta.label, positive: monthStats.completedDelta.positive },
-    { title: "High Priority", value: highPriority, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", change: monthStats.highDelta.label, positive: monthStats.highDelta.positive },
-  ];
-
-  const pipelineData = pipelineStages.map(stage => ({
-    name: stage.length > 12 ? stage.slice(0, 12) + "…" : stage,
-    count: tickets.filter(t => t.stage === stage).length,
-  }));
-
-  const typeData = [
-    { name: "New Policy", value: tickets.filter(t => t.type === "New Policy").length, color: "hsl(220, 70%, 50%)" },
-    { name: "Renewal", value: tickets.filter(t => t.type === "Renewal").length, color: "hsl(168, 60%, 45%)" },
-    { name: "Adjustment", value: tickets.filter(t => t.type === "Adjustment").length, color: "hsl(270, 60%, 55%)" },
-    { name: "Cancellation", value: tickets.filter(t => t.type === "Cancellation").length, color: "hsl(0, 72%, 55%)" },
-  ];
-
-  const priorityData = [
-    { name: "High", value: tickets.filter(t => t.priority === "High").length, color: "hsl(0, 72%, 55%)" },
-    { name: "Medium", value: tickets.filter(t => t.priority === "Medium").length, color: "hsl(38, 92%, 50%)" },
-    { name: "Low", value: tickets.filter(t => t.priority === "Low").length, color: "hsl(152, 55%, 45%)" },
-  ];
-
-  const monthlyTrend = useMemo(() => {
-    // Last 6 months (including current month), computed from backend `created_at`
-    const now = new Date();
-    const fmt = new Intl.DateTimeFormat(undefined, { month: "short" });
-
-    const buckets = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      return {
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-        month: fmt.format(d),
-        tickets: 0,
-        completed: 0,
-      };
-    });
-
-    const byKey = new Map(buckets.map((b) => [b.key, b]));
-
-    for (const t of safeRawTickets) {
-      if (!t?.created_at) continue;
-      const d = new Date(t.created_at);
-      if (Number.isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const bucket = byKey.get(key);
-      if (!bucket) continue; // outside last 6 months
-      bucket.tickets += 1;
-      if (t.status === "COMPLETED") bucket.completed += 1;
-    }
-
-    return buckets;
-  }, [safeRawTickets]);
-
-  const recentTickets = tickets.slice(0, 5);
-
-  const completionRate = totalTickets > 0 ? (completedTickets / totalTickets) * 100 : 0;
+    activeTickets,
+    todayLabel,
+    stats,
+    pipelineData,
+    typeData,
+    priorityData,
+    monthlyTrend,
+    recentTickets,
+    completionRate,
+    totalTickets
+  } = useDashboardStats(statsData);
 
   return (
     <div className="space-y-6">
@@ -163,16 +71,36 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {isLoadingTickets || isLoadingClients ? (
-        <div className="flex h-32 items-center justify-center text-muted-foreground">Loading dashboard data...</div>
+      {isLoadingStats ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="border shadow-sm h-full rounded-xl">
+                <CardContent className="p-5 flex justify-between items-start">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-3 w-32 mt-2" />
+                  </div>
+                  <Skeleton className="h-10 w-10 rounded-xl" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Skeleton className="h-[300px] w-full rounded-xl" />
+            <Skeleton className="h-[300px] w-full rounded-xl" />
+          </div>
+        </div>
       ) : (
-      <>
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <Card key={stat.title} className="border shadow-sm hover:shadow-md transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
+          <motion.div key={stat.title} variants={itemVariants}>
+            <Card className="border shadow-sm hover:shadow-md transition-shadow h-full">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{stat.title}</p>
                   <p className="text-3xl font-bold mt-1.5">{stat.value}</p>
@@ -187,11 +115,14 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
+          </motion.div>
         ))}
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div variants={itemVariants}>
+        <ErrorBoundary FallbackComponent={ChartFallback}>
         <Card className="border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -212,7 +143,11 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+        </ErrorBoundary>
+        </motion.div>
 
+        <motion.div variants={itemVariants}>
+        <ErrorBoundary FallbackComponent={ChartFallback}>
         <Card className="border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -232,12 +167,16 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+        </ErrorBoundary>
+        </motion.div>
       </div>
 
       {/* Second Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Type Pie */}
-        <Card className="border shadow-sm">
+        <motion.div variants={itemVariants}>
+        <ErrorBoundary FallbackComponent={ChartFallback}>
+        <Card className="border shadow-sm h-full">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <PieChart className="h-4 w-4 text-muted-foreground" />
@@ -264,9 +203,13 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </ErrorBoundary>
+        </motion.div>
 
         {/* Priority */}
-        <Card className="border shadow-sm">
+        <motion.div variants={itemVariants}>
+        <ErrorBoundary FallbackComponent={ChartFallback}>
+        <Card className="border shadow-sm h-full">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Priority Breakdown</CardTitle>
           </CardHeader>
@@ -307,9 +250,13 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </ErrorBoundary>
+        </motion.div>
 
         {/* Recent Tickets */}
-        <Card className="border shadow-sm">
+        <motion.div variants={itemVariants}>
+        <ErrorBoundary FallbackComponent={ChartFallback}>
+        <Card className="border shadow-sm h-full">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -335,8 +282,10 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </ErrorBoundary>
+        </motion.div>
       </div>
-      </>
+      </motion.div>
       )}
     </div>
   );

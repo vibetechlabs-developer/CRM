@@ -1,6 +1,6 @@
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Menu, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -28,14 +28,15 @@ function MainContent({ children }: { children: React.ReactNode }) {
           <SidebarTrigger>
             <Menu className="h-5 w-5" />
           </SidebarTrigger>
-          {collapsed && (
-            <span className="text-sm font-semibold text-foreground hidden sm:inline">InsuranceCRM</span>
-          )}
+
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 cursor-pointer outline-none">
               <Avatar className="h-8 w-8">
+                {user?.email && (
+                  <AvatarImage src={`https://unavatar.io/${user.email}?fallback=false`} />
+                )}
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                   {user?.name?.[0]?.toUpperCase() || "A"}
                 </AvatarFallback>
