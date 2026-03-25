@@ -145,7 +145,22 @@ export function TicketGrid({
               </Avatar>
               <span className="font-medium">{ticket.assignedTo}</span>
             </div>
-            <span>{ticket.createdDate}</span>
+            <div className="flex items-center gap-2">
+              <span>{ticket.createdDate}</span>
+              {ticket.createdBy ? (
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                    ticket.createdBy === "Agent"
+                      ? "border-primary/30 bg-primary/5 text-primary"
+                      : ticket.createdBy === "Client"
+                        ? "border-destructive/30 bg-destructive/5 text-destructive"
+                        : "border-border bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {ticket.createdBy}
+                </span>
+              ) : null}
+            </div>
           </div>
         </Card>
       ))}

@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
@@ -26,7 +26,6 @@ def _safe_get_text(data, key, default=""):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@authentication_classes([])  # Disable SessionAuthentication -> no CSRF required
 @csrf_exempt
 def submit_insurance_form(request):
     """
@@ -286,7 +285,6 @@ def submit_insurance_form(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@authentication_classes([])
 @csrf_exempt
 def submit_renewal_form(request):
     """
@@ -302,7 +300,6 @@ def submit_renewal_form(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@authentication_classes([])
 @csrf_exempt
 def submit_changes_form(request):
     """
@@ -316,7 +313,6 @@ def submit_changes_form(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@authentication_classes([])
 @csrf_exempt
 def submit_cancellation_form(request):
     """
@@ -330,7 +326,6 @@ def submit_cancellation_form(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@authentication_classes([])
 @csrf_exempt
 def submit_customer_issue_form(request):
     """

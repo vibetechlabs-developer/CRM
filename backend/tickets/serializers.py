@@ -109,6 +109,7 @@ class NoteSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     changed_by_name = serializers.SerializerMethodField()
     changed_by_username = serializers.SerializerMethodField()
+    ticket_created_by = serializers.SerializerMethodField()
 
     # Ticket-related fields so the frontend can show "what ticket is this?" quickly.
     #
@@ -160,6 +161,7 @@ class NotificationSerializer(serializers.ModelSerializer):
                 "status",
                 "priority",
                 "insurance_type",
+                "source",
                 "details",
                 "additional_notes",
                 "follow_up_date",
@@ -172,6 +174,21 @@ class NotificationSerializer(serializers.ModelSerializer):
         )
         cache[ticket_no] = ticket
         return ticket
+
+    def get_ticket_created_by(self, obj):
+        """
+        Tell whether the underlying ticket was created by a client (public WEB/WHATSAPP)
+        or by an agent (MANUAL).
+        """
+        ticket = self._resolve_ticket(obj)
+        if not ticket:
+            return None
+
+        if ticket.source in {"WEB", "WHATSAPP"}:
+            return "Client"
+        if ticket.source == "MANUAL":
+            return "Agent"
+        return "Unknown"
 
     def get_ticket_no(self, obj):
         ticket = self._resolve_ticket(obj)

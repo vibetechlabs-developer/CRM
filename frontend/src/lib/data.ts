@@ -51,6 +51,7 @@ export interface Ticket {
 export type TicketTypeCode = "NEW" | "RENEWAL" | "CHANGES" | "CANCELLATION" | (string & {});
 export type TicketStatusCode = "LEAD" | "RENEWAL" | "FOLLOW_UP" | "CHANGES" | "COMPLETED" | "DISCARDED" | (string & {});
 export type TicketPriorityCode = "LOW" | "MEDIUM" | "HIGH" | (string & {});
+export type TicketSourceCode = "WHATSAPP" | "WEB" | "MANUAL" | (string & {});
 
 export interface BackendUser {
   id: number;
@@ -81,6 +82,7 @@ export interface BackendTicket {
   insurance_type?: string;
   status: TicketStatusCode;
   priority: TicketPriorityCode;
+  source?: TicketSourceCode;
   assigned_to?: number | BackendUser | null;
   assigned_to_name?: string;
   assigned_to_username?: string;
@@ -106,6 +108,8 @@ export interface TicketRow {
   assignedToId: number | null;
   createdDate: string;
   createdAtRaw?: string;
+  // Ticket creator origin derived from backend `source`.
+  createdBy?: "Client" | "Agent" | "Unknown";
   // Backend `details` text capturing all submitted form fields
   details?: any;
   additionalNotes?: string;
@@ -222,6 +226,12 @@ export const formatBackendTicket = (t: BackendTicket): TicketRow => {
     displayType = "Customer Issue";
   }
 
+  // Infer who created the ticket based on `source`:
+  // - Client forms: WEB / WHATSAPP
+  // - Agent/manual: MANUAL
+  const createdBy: TicketRow["createdBy"] =
+    t.source === "MANUAL" ? "Agent" : t.source === "WEB" || t.source === "WHATSAPP" ? "Client" : "Unknown";
+
   return {
     id: t.id,
     ticket_no: t.ticket_no,
@@ -240,6 +250,7 @@ export const formatBackendTicket = (t: BackendTicket): TicketRow => {
     createdAtRaw: t.created_at,
     details: t.details,
     additionalNotes: t.additional_notes,
+    createdBy,
   };
 };
 

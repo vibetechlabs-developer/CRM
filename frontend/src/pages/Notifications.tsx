@@ -177,6 +177,22 @@ export default function Notifications() {
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span>By {n.changed_by_name || n.changed_by_username || "Unknown Agent"}</span>
+                    {n.ticket_created_by ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-muted-foreground">•</span>
+                        <span className="text-muted-foreground">Ticket created by</span>
+                        <Badge
+                          variant={n.ticket_created_by === "Client" ? "destructive" : "secondary"}
+                          className={
+                            n.ticket_created_by === "Client"
+                              ? "px-2 py-0 font-semibold"
+                              : "px-2 py-0 font-semibold bg-secondary/50"
+                          }
+                        >
+                          {n.ticket_created_by}
+                        </Badge>
+                      </span>
+                    ) : null}
                       {!n.is_read && <Badge variant="secondary" className="px-2 py-0">New</Badge>}
                       {n.ticket_type && (
                         <Badge variant="outline" className="px-2 py-0">
