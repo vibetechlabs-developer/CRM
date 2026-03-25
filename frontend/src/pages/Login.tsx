@@ -43,7 +43,18 @@ const Login = () => {
       navigate("/");
     } catch (error) {
       const err = error as any;
-      setError(err.response?.data?.detail || err.response?.data?.error || err.message || "Something went wrong");
+      const backendMessage =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.response?.data?.message;
+
+      // Axios uses a generic "Network Error" when the browser can't reach the API (server not running / wrong port).
+      if (!backendMessage && (err?.message === "Network Error" || err?.code === "ERR_NETWORK")) {
+        setError("Unable to reach the backend API (http://localhost:8000). Start the Django server and try again.");
+        return;
+      }
+
+      setError(backendMessage || err?.message || "Something went wrong");
     } finally {
       setIsLoading(false);
     }

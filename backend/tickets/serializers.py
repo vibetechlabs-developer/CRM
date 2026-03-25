@@ -111,19 +111,99 @@ class NotificationSerializer(serializers.ModelSerializer):
     changed_by_username = serializers.SerializerMethodField()
 
     # Ticket-related fields so the frontend can show "what ticket is this?" quickly.
-    ticket_no = serializers.CharField(source="ticket.ticket_no", read_only=True)
-    ticket_type = serializers.CharField(source="ticket.ticket_type", read_only=True)
-    ticket_status = serializers.CharField(source="ticket.status", read_only=True)
-    ticket_priority = serializers.CharField(source="ticket.priority", read_only=True)
-    insurance_type = serializers.CharField(source="ticket.insurance_type", read_only=True)
-    ticket_details = serializers.JSONField(source="ticket.details", read_only=True)
-    ticket_additional_notes = serializers.CharField(
-        source="ticket.additional_notes",
-        read_only=True,
-    )
-    follow_up_date = serializers.DateTimeField(source="ticket.follow_up_date", read_only=True)
+    #
+    # NOTE: In some existing live data, `Notification.ticket` may be null (older rows),
+    # but the `message` still contains the ticket number (e.g. "INS-00043").
+    # We therefore resolve missing ticket data from the message when needed.
+    ticket_no = serializers.SerializerMethodField()
+    ticket_type = serializers.SerializerMethodField()
+    ticket_status = serializers.SerializerMethodField()
+    ticket_priority = serializers.SerializerMethodField()
+    insurance_type = serializers.SerializerMethodField()
+    ticket_details = serializers.SerializerMethodField()
+    ticket_additional_notes = serializers.SerializerMethodField()
+    follow_up_date = serializers.SerializerMethodField()
+
+    # Ticket-related fields so the frontend can show "what ticket is this?" quickly.
     client_name = serializers.SerializerMethodField()
     client_email = serializers.SerializerMethodField()
+
+    _ticket_no_re = re.compile(r"\b(INS-\d+)\b", re.IGNORECASE)
+
+    def _resolve_ticket(self, obj):
+        """
+        Return the related `Ticket` if available.
+        If `obj.ticket` is null, try to resolve from `obj.message` by extracting `INS-...`.
+        """
+        # Fast path: if the FK is present, just use it.
+        if getattr(obj, "ticket_id", None):
+            return getattr(obj, "ticket", None)
+
+        # Cache lookups within this request to avoid N+1 queries.
+        cache = self.context.setdefault("_notification_ticket_cache", {})
+
+        message = getattr(obj, "message", "") or ""
+        m = self._ticket_no_re.search(message)
+        if not m:
+            return None
+
+        ticket_no = m.group(1).upper()
+        if ticket_no in cache:
+            return cache[ticket_no]
+
+        ticket = (
+            Ticket.objects.select_related("client")
+            .only(
+                "id",
+                "ticket_no",
+                "ticket_type",
+                "status",
+                "priority",
+                "insurance_type",
+                "details",
+                "additional_notes",
+                "follow_up_date",
+                "client__first_name",
+                "client__last_name",
+                "client__email",
+            )
+            .filter(ticket_no=ticket_no)
+            .first()
+        )
+        cache[ticket_no] = ticket
+        return ticket
+
+    def get_ticket_no(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "ticket_no", None) if ticket else None
+
+    def get_ticket_type(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "ticket_type", None) if ticket else None
+
+    def get_ticket_status(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "status", None) if ticket else None
+
+    def get_ticket_priority(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "priority", None) if ticket else None
+
+    def get_insurance_type(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "insurance_type", None) if ticket else None
+
+    def get_ticket_details(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "details", None) if ticket else None
+
+    def get_ticket_additional_notes(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "additional_notes", None) if ticket else None
+
+    def get_follow_up_date(self, obj):
+        ticket = self._resolve_ticket(obj)
+        return getattr(ticket, "follow_up_date", None) if ticket else None
 
     def _get_actor(self, obj):
         if obj.created_by:
@@ -171,17 +251,19 @@ class NotificationSerializer(serializers.ModelSerializer):
         return actor.username if actor else None
 
     def get_client_name(self, obj):
-        if not getattr(obj, "ticket", None) or not getattr(obj.ticket, "client", None):
+        ticket = self._resolve_ticket(obj)
+        if not ticket or not getattr(ticket, "client", None):
             return None
-        first = obj.ticket.client.first_name or ""
-        last = obj.ticket.client.last_name or ""
+        first = ticket.client.first_name or ""
+        last = ticket.client.last_name or ""
         full_name = f"{first} {last}".strip()
         return full_name or None
 
     def get_client_email(self, obj):
-        if not getattr(obj, "ticket", None) or not getattr(obj.ticket, "client", None):
+        ticket = self._resolve_ticket(obj)
+        if not ticket or not getattr(ticket, "client", None):
             return None
-        return obj.ticket.client.email
+        return ticket.client.email
 
     class Meta:
         model = Notification
