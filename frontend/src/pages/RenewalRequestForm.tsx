@@ -56,6 +56,7 @@ const RenewalRequestForm = () => {
   const onSubmit = async (data: RenewalFormValues) => {
     setIsSubmitting(true);
     try {
+      const isCrm = window.location.pathname.startsWith("/crm/");
       const payload = {
         first_name: data.first_name,
         last_name: data.last_name,
@@ -74,6 +75,7 @@ const RenewalRequestForm = () => {
         renewal_price: data.renewal_price,
         premium_looking_current_year: data.premium_looking_current_year,
         additional_details: data.additional_details,
+        ...(isCrm ? { source_override: "MANUAL" } : {}),
       };
 
       const response = await api.post("/api/forms/renewal/", payload);

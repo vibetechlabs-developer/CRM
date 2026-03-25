@@ -39,7 +39,14 @@ const CustomerIssueForm = () => {
   const onSubmit = async (data: CustomerIssueFormValues) => {
     setIsSubmitting(true);
     try {
-      const response = await api.post("/api/forms/customer-issue/", data);
+      // If agent is submitting from CRM pages, label it as MANUAL on backend.
+      const isCrm = window.location.pathname.startsWith("/crm/");
+      const payload: any = {
+        ...data,
+        ...(isCrm ? { source_override: "MANUAL" } : {}),
+      };
+
+      const response = await api.post("/api/forms/customer-issue/", payload);
       if (response.data.success) {
         setTicketNo(response.data.ticket_no);
         setIsSuccess(true);

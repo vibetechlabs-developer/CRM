@@ -116,6 +116,7 @@ const PolicyChangeForm = () => {
   const onSubmit = async (data: PolicyChangeFormValues) => {
     setIsSubmitting(true);
     try {
+      const isCrm = window.location.pathname.startsWith("/crm/");
       const payload = {
         first_name: data.first_name,
         last_name: data.last_name,
@@ -155,6 +156,7 @@ const PolicyChangeForm = () => {
         requesting_information_or_instruction: data.requesting_information_or_instruction,
         
         insurance_type: "Policy Change",
+        ...(isCrm ? { source_override: "MANUAL" } : {}),
       };
 
       const response = await api.post("/api/forms/changes/", payload);

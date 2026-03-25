@@ -69,7 +69,9 @@ const InsuranceFormManual = () => {
   const onSubmit = async (data: InsuranceFormValues) => {
     setIsSubmitting(true);
     try {
-      const response = await api.post("/api/insurance-form/", data);
+      // This form is used by agents (CRM). Send a hint so backend can label creator correctly.
+      const payload = { ...data, source_override: "MANUAL" };
+      const response = await api.post("/api/insurance-form/", payload);
       
       if (response.data.success) {
         toast.success(`Form submitted successfully! Ticket #${response.data.ticket_no} created.`);

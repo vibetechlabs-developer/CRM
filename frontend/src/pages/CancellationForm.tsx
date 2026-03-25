@@ -42,7 +42,13 @@ const CancellationForm = () => {
   const onSubmit = async (data: CancellationFormValues) => {
     setIsSubmitting(true);
     try {
-      const response = await api.post("/api/forms/cancellation/", data);
+      const isCrm = window.location.pathname.startsWith("/crm/");
+      const payload: any = {
+        ...data,
+        ...(isCrm ? { source_override: "MANUAL" } : {}),
+      };
+
+      const response = await api.post("/api/forms/cancellation/", payload);
       if (response.data.success) {
         setTicketNo(response.data.ticket_no);
         setIsSuccess(true);

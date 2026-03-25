@@ -253,8 +253,14 @@ def submit_insurance_form(request):
         full_address = _clean_str(full_address)
         
         # Determine source based on authentication
-        # If user is authenticated, it's a manual entry; otherwise, it's from web form
+        # If user is authenticated, it's a manual entry; otherwise, it's from web form.
+        #
+        # CRM forms may submit from the logged-in UI but still fail cookie auth in some
+        # deployments, so we also accept an explicit override from the frontend.
         source = 'MANUAL' if request.user.is_authenticated else 'WEB'
+        source_override = _safe_get_text(data, "source_override", "").upper()
+        if source_override in {"MANUAL", "WEB"}:
+            source = source_override
         
         # Create ticket
         ticket = Ticket.objects.create(
@@ -411,7 +417,11 @@ def submit_typed_form(request):
         for k in passthrough_keys:
             details_dict[k] = _safe_get_text(data, k)
 
+        # Determine source based on authentication; allow `source_override` hint from frontend.
         source = 'MANUAL' if request.user.is_authenticated else 'WEB'
+        source_override = _safe_get_text(data, "source_override", "").upper()
+        if source_override in {"MANUAL", "WEB"}:
+            source = source_override
 
         initial_status = 'LEAD'
         if ticket_type == 'RENEWAL':
