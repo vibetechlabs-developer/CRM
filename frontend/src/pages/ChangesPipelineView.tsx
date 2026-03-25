@@ -49,6 +49,10 @@ const formatTicket = (t: any): Ticket => {
         t.assigned_to_name ||
         t.assigned_to_username ||
         (t.assigned_to ? `User ${t.assigned_to}` : null);
+
+    const additionalNotes = t.additional_notes || t.additionalNotes || "";
+    const isCustomerIssue = typeof additionalNotes === "string" && additionalNotes.includes("[Form: Customer Issue]");
+    const typeDisplay = isCustomerIssue ? "Customer Issue" : getTypeDisplay(t.ticket_type);
     const displayStatus = getStatusDisplay(t.status);
     const stageForChangesPipeline: PipelineStage =
       displayStatus === "Completed"
@@ -61,7 +65,7 @@ const formatTicket = (t: any): Ticket => {
         id: String(t.id),
         ticket_no: t.ticket_no,
         clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
-        type: getTypeDisplay(t.ticket_type),
+        type: typeDisplay,
         // This view has 3 lanes: Changes, Follow Up, Completed.
         stage: stageForChangesPipeline,
         priority: getPriorityDisplay(t.priority),
@@ -70,7 +74,7 @@ const formatTicket = (t: any): Ticket => {
         insuranceType: t.insurance_type || t.insuranceType || "",
         clientEmail: t.client_email || t.clientEmail || "",
         createdAtRaw: t.created_at,
-        additionalNotes: t.additional_notes || "",
+        additionalNotes: additionalNotes || "",
     } as any;
 };
 

@@ -48,7 +48,6 @@ const pipelineBoardStages: PipelineStage[] = [
   "Lead/Inquiry",
   "Renewal",
   "Follow Up",
-  "Changes",
   "Completed",
 ];
 
@@ -103,7 +102,14 @@ const PipelineView = () => {
   useEffect(() => {
     import("@/lib/normalize").then(({ normalizeListResponse }) => {
       const safeTickets = normalizeListResponse(ticketsData);
-      setLocalTickets(safeTickets.map(formatTicket));
+      // Project pipeline should only show: NEW, RENEWAL, CANCELLATION.
+      // Change/Adjustment/Customer Issue tickets belong to the Changes Pipeline.
+      const projectTypeCodes = new Set(["NEW", "RENEWAL", "CANCELLATION"]);
+      const filtered = safeTickets.filter((t: any) => {
+        const typeCode = String(t?.ticket_type || "").toUpperCase();
+        return projectTypeCodes.has(typeCode);
+      });
+      setLocalTickets(filtered.map(formatTicket));
     });
   }, [ticketsData]);
 
