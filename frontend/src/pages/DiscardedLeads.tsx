@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import api, { fetchAllPages } from "@/lib/api";
+import api from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { normalizeListResponse } from "@/lib/normalize";
 import { Spinner } from "@/components/ui/spinner";
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 const getTypeDisplay = (backendCode: string) => {
     switch(backendCode) {
@@ -44,14 +45,28 @@ const formatTicket = (t: any) => {
 };
 
 export default function DiscardedLeads() {
+    const [page, setPage] = useState(1);
+
     const { data, isLoading, error } = useQuery({
-        queryKey: ["tickets", "discarded"],
+        queryKey: ["tickets", "discarded", page],
         queryFn: async () => {
-            return await fetchAllPages("/api/tickets/?status=DISCARDED");
+            const response = await api.get("/api/tickets/", {
+                params: {
+                    status: "DISCARDED",
+                    page,
+                    ordering: "-created_at",
+                },
+            });
+            const payload = response.data;
+            const items = Array.isArray(payload) ? payload : (payload.results || []);
+            const totalCount = !Array.isArray(payload) && typeof payload.count === "number" ? payload.count : items.length;
+            return { items, totalCount };
         }
     });
 
-    const discardedTickets = normalizeListResponse(data).map(formatTicket);
+    const discardedTickets = (data?.items || []).map(formatTicket);
+    const itemsPerPage = 10;
+    const totalPages = Math.max(1, Math.ceil((data?.totalCount || 0) / itemsPerPage));
 
     return (
         <div className="space-y-6 h-full flex flex-col max-w-[1200px] mx-auto w-full">
@@ -65,7 +80,7 @@ export default function DiscardedLeads() {
             <Card className="flex-1 shadow-sm border-border">
                 <CardHeader className="bg-muted/30 pb-4 border-b">
                     <CardTitle className="text-lg">Discarded History</CardTitle>
-                    <CardDescription>A total of {discardedTickets.length} leads have been discarded.</CardDescription>
+                    <CardDescription>A total of {data?.totalCount || 0} leads have been discarded.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -119,6 +134,37 @@ export default function DiscardedLeads() {
                             )}
                         </TableBody>
                     </Table>
+                    {totalPages > 1 && (
+                        <Pagination className="py-4">
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        href="#"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            if (page > 1) setPage(page - 1);
+                                        }}
+                                        className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+                                    />
+                                </PaginationItem>
+                                <PaginationItem>
+                                    <span className="text-sm px-4">
+                                        Page {page} of {totalPages}
+                                    </span>
+                                </PaginationItem>
+                                <PaginationItem>
+                                    <PaginationNext
+                                        href="#"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            if (page < totalPages) setPage(page + 1);
+                                        }}
+                                        className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    )}
                 </CardContent>
             </Card>
         </div>

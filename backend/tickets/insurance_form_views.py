@@ -12,8 +12,8 @@ def _clean_str(value):
     """Normalize incoming payload values to a safely stripped string."""
     if value is None:
         return ""
-    if isinstance(value, str):
-        return value.strip()
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="ignore")
     return str(value).strip()
 
 
@@ -319,7 +319,7 @@ def submit_typed_form(request):
     """
     try:
         data = request.data
-        ticket_type = data.get("ticket_type", "NEW")
+        ticket_type = _safe_get_text(data, "ticket_type", "NEW") or "NEW"
 
         # Extract client info
         first_name = _safe_get_text(data, 'first_name')
@@ -380,7 +380,7 @@ def submit_typed_form(request):
         if insurance_type:
             details_dict["Insurance Type"] = insurance_type
         for k in passthrough_keys:
-            details_dict[k] = data.get(k)
+            details_dict[k] = _safe_get_text(data, k)
 
         source = 'MANUAL' if request.user.is_authenticated else 'WEB'
 

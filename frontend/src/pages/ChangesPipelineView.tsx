@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay } from "@/lib/data";
+import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay, getStageTransitionError } from "@/lib/data";
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
-import { Plus, SlidersHorizontal, CheckCircle } from "lucide-react";
+import { Plus, SlidersHorizontal, CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,15 +14,29 @@ import { CalendarIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
-const changesPipelineStages: PipelineStage[] = ["Changes", "Completed"];
+// 3-stage layout like Project Pipeline: Changes -> Follow Up -> Completed.
+const changesPipelineStages: PipelineStage[] = ["Changes", "Follow Up", "Completed"];
 
 const stageIcons: Record<string, React.ReactNode> = {
+  "Follow Up": <Clock className="h-4 w-4" />,
   "Changes": <SlidersHorizontal className="h-4 w-4" />,
   "Completed": <CheckCircle className="h-4 w-4" />,
 };
 
 const stageColors: Record<string, string> = {
+  "Follow Up": "text-info border-info/20 bg-info/10",
   "Changes": "text-primary border-primary/20 bg-primary/10",
   "Completed": "text-success border-success/20 bg-success/10",
 };
@@ -37,14 +51,18 @@ const formatTicket = (t: any): Ticket => {
         (t.assigned_to ? `User ${t.assigned_to}` : null);
     const displayStatus = getStatusDisplay(t.status);
     const stageForChangesPipeline: PipelineStage =
-      displayStatus === "Completed" ? "Completed" : "Changes";
+      displayStatus === "Completed"
+        ? "Completed"
+        : displayStatus === "Follow Up"
+          ? "Follow Up"
+          : "Changes";
 
     return {
         id: String(t.id),
         ticket_no: t.ticket_no,
         clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
         type: getTypeDisplay(t.ticket_type),
-        // This view has only 2 lanes: all open change requests and completed ones.
+        // This view has 3 lanes: Changes, Follow Up, Completed.
         stage: stageForChangesPipeline,
         priority: getPriorityDisplay(t.priority),
         createdDate: new Date(t.created_at).toLocaleDateString(),
@@ -65,6 +83,8 @@ const ChangesPipelineView = () => {
   const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [isMoveConfirmOpen, setIsMoveConfirmOpen] = useState(false);
+  const [pendingMove, setPendingMove] = useState<{ ticketId: string; fromStage: PipelineStage; toStage: PipelineStage } | null>(null);
 
   const { data: ticketsData, isLoading } = useQuery({
       queryKey: ["tickets"],
@@ -142,11 +162,29 @@ const ChangesPipelineView = () => {
 
     const ticketId = active.id as string;
     const newStage = over.id as PipelineStage;
+    const ticket = localTickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+    const fromStage = ticket.stage;
+    if (fromStage === newStage) return;
+
+    const transitionError = getStageTransitionError(fromStage, newStage);
+    if (transitionError) {
+      toast.error(transitionError);
+      return;
+    }
+
+    setPendingMove({ ticketId, fromStage, toStage: newStage });
+    setIsMoveConfirmOpen(true);
+  };
+
+  const confirmMove = () => {
+    if (!pendingMove) return;
+    const { ticketId, toStage } = pendingMove;
 
     // Optimistically update
     setLocalTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
-        return { ...t, stage: newStage };
+        return { ...t, stage: toStage };
       }
       return t;
     }));
@@ -154,8 +192,10 @@ const ChangesPipelineView = () => {
     // Dispatch update to API
     updateTicketMutation.mutate({
       id: ticketId,
-      status: getStatusBackendCode(newStage)
+      status: getStatusBackendCode(toStage)
     });
+    setIsMoveConfirmOpen(false);
+    setPendingMove(null);
   };
 
   const currentYear = new Date().getFullYear();
@@ -254,7 +294,7 @@ const ChangesPipelineView = () => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pb-4 max-w-4xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start pb-4 w-full max-w-6xl">
           {isLoading ? (
             <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground gap-2">
               <Spinner size="md" />
@@ -300,6 +340,29 @@ const ChangesPipelineView = () => {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <AlertDialog
+        open={isMoveConfirmOpen}
+        onOpenChange={(open) => {
+          setIsMoveConfirmOpen(open);
+          if (!open) setPendingMove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm ticket move</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingMove
+                ? `Move this ticket from ${pendingMove.fromStage} to ${pendingMove.toStage}?`
+                : "Are you sure you want to move this ticket?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMove}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

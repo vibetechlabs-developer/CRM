@@ -195,6 +195,13 @@ class Notification(models.Model):
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_notifications",
+    )
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, null=True, blank=True, related_name="notifications")
     message = models.TextField()
     is_read = models.BooleanField(default=False)

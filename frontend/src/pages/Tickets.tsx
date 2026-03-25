@@ -13,6 +13,7 @@ import {
   formatBackendTicket,
   getPriorityBackendCode,
   getStatusBackendCode,
+  getStageTransitionError,
 } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,17 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 const typeColors: Record<string, string> = {
   "New Policy": "text-primary border-primary/20 bg-primary/5",
@@ -88,6 +100,12 @@ const Tickets = () => {
   const [selectedTicket, setSelectedTicket] = useState<TicketRow | null>(null);
   const [modalType, setModalType] = useState<"view" | "edit" | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    ticketId: number;
+    fromStage: PipelineStage | string;
+    toStage: PipelineStage;
+  } | null>(null);
 
   const navigate = useNavigate();
 
@@ -229,7 +247,32 @@ const Tickets = () => {
   const filtered = formattedTickets;
 
   const handleStageChange = (ticketId: number, newStage: PipelineStage) => {
-    updateTicketMutation.mutate({ id: ticketId, data: { status: getStatusBackendCode(newStage) } });
+    const ticket = formattedTickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+    if (ticket.stage === newStage) return;
+
+    const transitionError = getStageTransitionError(ticket.stage, newStage);
+    if (transitionError) {
+      toast.error(transitionError);
+      return;
+    }
+
+    setPendingStatusChange({
+      ticketId,
+      fromStage: ticket.stage,
+      toStage: newStage,
+    });
+    setIsStatusConfirmOpen(true);
+  };
+
+  const confirmStatusChange = () => {
+    if (!pendingStatusChange) return;
+    updateTicketMutation.mutate({
+      id: pendingStatusChange.ticketId,
+      data: { status: getStatusBackendCode(pendingStatusChange.toStage) },
+    });
+    setIsStatusConfirmOpen(false);
+    setPendingStatusChange(null);
   };
 
   const handlePriorityChange = (ticketId: number, newPriority: Priority) => {
@@ -413,7 +456,26 @@ const Tickets = () => {
             data: { assigned_to: assignedToId },
           })
         }
-        onSaveEdit={({ id, status, priority, insuranceType, assignedToId }) =>
+        onSaveEdit={({ id, status, priority, insuranceType, assignedToId }) => {
+          const ticket = formattedTickets.find((t) => t.id === id);
+          const isStageChanged = !!ticket && String(ticket.stage) !== String(status);
+
+          if (ticket && isStageChanged) {
+            const transitionError = getStageTransitionError(ticket.stage, status);
+            if (transitionError) {
+              toast.error(transitionError);
+              return;
+            }
+
+            setPendingStatusChange({
+              ticketId: id,
+              fromStage: ticket.stage,
+              toStage: status as PipelineStage,
+            });
+            setIsStatusConfirmOpen(true);
+            return;
+          }
+
           updateTicketMutation.mutate({
             id,
             data: {
@@ -422,12 +484,35 @@ const Tickets = () => {
               insurance_type: insuranceType,
               ...(user?.role === "ADMIN" ? { assigned_to: assignedToId } : {}),
             },
-          })
-        }
+          });
+        }}
         isSaving={updateTicketMutation.isPending}
         onDiscard={handleDiscard}
         isDiscarding={updateTicketMutation.isPending}
       />
+
+      <AlertDialog
+        open={isStatusConfirmOpen}
+        onOpenChange={(open) => {
+          setIsStatusConfirmOpen(open);
+          if (!open) setPendingStatusChange(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm ticket move</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingStatusChange
+                ? `Move this ticket from ${pendingStatusChange.fromStage} to ${pendingStatusChange.toStage}?`
+                : "Are you sure you want to move this ticket?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmStatusChange}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

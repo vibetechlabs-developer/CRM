@@ -15,6 +15,15 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/ui/spinner";
 
+const PERMISSION_OPTIONS = [
+  "View Tickets",
+  "Create Tickets",
+  "Edit Clients",
+  "Delete Records",
+  "Manage Billing",
+  "Export Data",
+];
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatUser = (user: any) => ({
    id: user.id,
@@ -128,6 +137,28 @@ const UserControl = () => {
     },
   });
 
+  const [accessForm, setAccessForm] = useState<{ permissions: string[] }>({ permissions: [] });
+
+  const updatePermissionsMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) return;
+      const payload = { permissions: accessForm.permissions };
+      const res = await api.patch(`/api/users/${selectedUser.id}/`, payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Permissions updated");
+      setActionType(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.detail ||
+        "Failed to update permissions";
+      toast.error(msg);
+    },
+  });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const openAction = (user: any, type: "edit" | "access" | "delete") => {
     setSelectedUser(user);
@@ -141,6 +172,11 @@ const UserControl = () => {
       email: selectedUser.email || "",
       role: (selectedUser.role || "Agent") as "Admin" | "Manager" | "Agent",
     });
+  }, [selectedUser, actionType]);
+
+  useEffect(() => {
+    if (!selectedUser || actionType !== "access") return;
+    setAccessForm({ permissions: selectedUser.permissions || [] });
   }, [selectedUser, actionType]);
 
   return (
@@ -236,19 +272,15 @@ const UserControl = () => {
                     </span>
                   </td>
                   <td className="p-4 hidden sm:table-cell">
-                    {user.role === "Admin" ? (
-                      <span className="text-xs font-medium text-muted-foreground italic px-2 py-1 bg-secondary/50 rounded-md">Full System Access</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5 max-w-[250px]">
-                        {user.permissions.length > 0 ? user.permissions.map(p => (
-                          <span key={p} className="text-[10px] px-2 py-0.5 rounded-full border bg-background font-medium text-muted-foreground shadow-sm">
-                            {p}
-                          </span>
-                        )) : (
-                          <span className="text-xs text-muted-foreground italic">No specific access</span>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-1.5 max-w-[250px]">
+                      {user.permissions.length > 0 ? user.permissions.map(p => (
+                        <span key={p} className="text-[10px] px-2 py-0.5 rounded-full border bg-background font-medium text-muted-foreground shadow-sm">
+                          {p}
+                        </span>
+                      )) : (
+                        <span className="text-xs text-muted-foreground italic">No specific access</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-1">
@@ -334,21 +366,32 @@ const UserControl = () => {
               {actionType === "access" && (
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Current Permissions:</p>
-                  {selectedUser.role === "Admin" ? (
-                    <div className="p-3 bg-destructive/10 text-destructive border border-destructive/20 rounded-lg text-sm flex items-start gap-2">
-                      <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
-                      <p>Administrators have full system access by default. You cannot modify specific permissions for this role.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {["View Tickets", "Create Tickets", "Edit Clients", "Delete Records", "Manage Billing", "Export Data"].map(p => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {PERMISSION_OPTIONS.map(p => {
+                      const id = `perm-${p.replace(/\s+/g, "-").toLowerCase()}`;
+                      const isChecked = accessForm.permissions.includes(p);
+                      return (
                         <div key={p} className="flex items-center gap-2">
-                          <input type="checkbox" id={p} defaultChecked={selectedUser.permissions.includes(p)} className="rounded border-border" />
-                          <label htmlFor={p} className="text-sm select-none">{p}</label>
+                          <input
+                            type="checkbox"
+                            id={id}
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const nextChecked = e.target.checked;
+                              setAccessForm((s) => ({
+                                ...s,
+                                permissions: nextChecked
+                                  ? Array.from(new Set([...s.permissions, p]))
+                                  : s.permissions.filter((x) => x !== p),
+                              }));
+                            }}
+                            className="rounded border-border"
+                          />
+                          <label htmlFor={id} className="text-sm select-none">{p}</label>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -361,11 +404,15 @@ const UserControl = () => {
                   updateUserMutation.mutate();
                   return;
                 }
+                if (actionType === "access") {
+                  updatePermissionsMutation.mutate();
+                  return;
+                }
                 setActionType(null);
               }}
-              disabled={updateUserMutation.isPending}
+              disabled={updateUserMutation.isPending || updatePermissionsMutation.isPending}
             >
-              {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+              {updateUserMutation.isPending || updatePermissionsMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

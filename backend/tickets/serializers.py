@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from users.models import User
 from .models import Ticket, TicketActivity, Note, Notification
+import re
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -55,6 +56,7 @@ class TicketSerializer(serializers.ModelSerializer):
                         Notification(
                             user_id=admin_id,
                             ticket=instance,
+                            created_by=actor,
                             message=f"Ticket {instance.ticket_no} status: {old_status} → {instance.status}",
                         )
                         for admin_id in admin_ids
@@ -82,6 +84,7 @@ class TicketSerializer(serializers.ModelSerializer):
                         Notification(
                             user_id=admin_id,
                             ticket=instance,
+                            created_by=actor,
                             message=f"Ticket {instance.ticket_no} reassigned.",
                         )
                         for admin_id in admin_ids
@@ -104,6 +107,54 @@ class NoteSerializer(serializers.ModelSerializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.SerializerMethodField()
+    changed_by_username = serializers.SerializerMethodField()
+
+    def _get_actor(self, obj):
+        if obj.created_by:
+            return obj.created_by
+
+        # If message says "assigned to <username>", resolve that agent directly.
+        if obj.message:
+            assigned_match = re.search(r"assigned to\s+([a-zA-Z0-9_@.\-]+)", obj.message, re.IGNORECASE)
+            if assigned_match:
+                username = assigned_match.group(1).rstrip(".")
+                assigned_user = User.objects.filter(username=username).first()
+                if assigned_user:
+                    return assigned_user
+
+        if not obj.ticket_id:
+            return None
+        latest_activity = (
+            TicketActivity.objects.filter(
+                ticket_id=obj.ticket_id,
+                user__isnull=False,
+                created_at__lte=obj.created_at,
+            )
+            .select_related("user")
+            .order_by("-created_at")
+            .first()
+        )
+        if latest_activity and latest_activity.user:
+            return latest_activity.user
+
+        # Final fallback for system-generated notifications:
+        # show currently assigned agent for the ticket.
+        return getattr(obj.ticket, "assigned_to", None)
+
+    def get_changed_by_name(self, obj):
+        actor = self._get_actor(obj)
+        if not actor:
+            return None
+        first_name = actor.first_name or ""
+        last_name = actor.last_name or ""
+        full_name = f"{first_name} {last_name}".strip()
+        return full_name if full_name else actor.username
+
+    def get_changed_by_username(self, obj):
+        actor = self._get_actor(obj)
+        return actor.username if actor else None
+
     class Meta:
         model = Notification
         fields = "__all__"

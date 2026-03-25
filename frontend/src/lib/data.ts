@@ -349,6 +349,38 @@ export const pipelineStages: PipelineStage[] = [
   "Discarded Leads",
 ];
 
+const restrictedStatusTransitions: Partial<Record<PipelineStage, PipelineStage[]>> = {
+  // New Policy flow (Lead/Inquiry + Follow Up) should never enter Renewal section.
+  "Lead/Inquiry": ["Renewal"],
+
+  // Follow Up and Completed cannot go back into Lead/Inquiry or Renewal.
+  "Follow Up": ["Lead/Inquiry", "Renewal"],
+  "Completed": ["Lead/Inquiry", "Renewal"],
+
+  // Renewal tickets cannot move into Lead/Inquiry.
+  "Renewal": ["Lead/Inquiry"],
+
+  // Changes tickets also cannot move into Lead/Inquiry or Renewal.
+  "Changes": ["Lead/Inquiry", "Renewal"],
+};
+
+export const getStageTransitionError = (
+  fromStage: PipelineStage | string,
+  toStage: PipelineStage | string
+): string | null => {
+  if (fromStage === toStage) return null;
+
+  const from = fromStage as PipelineStage;
+  const to = toStage as PipelineStage;
+  const blockedTargets = restrictedStatusTransitions[from];
+
+  if (blockedTargets?.includes(to)) {
+    return `Cannot move ticket from ${fromStage} to ${toStage}.`;
+  }
+
+  return null;
+};
+
 export const insuranceTypes: InsuranceType[] = [
   "Home Insurance",
   "Auto Insurance",

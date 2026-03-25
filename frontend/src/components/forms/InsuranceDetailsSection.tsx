@@ -10,6 +10,8 @@ interface InsuranceDetailsSectionProps {
 }
 
 export function InsuranceDetailsSection({ control }: InsuranceDetailsSectionProps) {
+  const today = new Date().toISOString().split("T")[0];
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold border-b pb-2">Insurance Details</h3>
@@ -90,7 +92,7 @@ export function InsuranceDetailsSection({ control }: InsuranceDetailsSectionProp
               <FormItem>
                 <FormLabel>Date Of Birth</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input type="date" max={today} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

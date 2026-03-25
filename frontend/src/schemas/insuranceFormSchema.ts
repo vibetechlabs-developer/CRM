@@ -8,7 +8,7 @@ export const insuranceFormSchema = z.object({
 
   // Contact
   phone: z.string().min(10, "Phone number is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
 
   // Address
   street_address: z.string().min(1, "Street Address is required"),

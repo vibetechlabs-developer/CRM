@@ -5,7 +5,7 @@ export const policyChangeSchema = z.object({
   last_name: z.string().min(1, "Last name is required"),
   occupation: z.string().optional(),
   phone: z.string().min(10, "Phone number is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   
   what_changes: z.array(z.string()).min(1, "Please select at least one change option"),
   

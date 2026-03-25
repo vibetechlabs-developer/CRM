@@ -5,7 +5,7 @@ export const renewalSchema = z.object({
   last_name: z.string().min(1, "Last name is required"),
   occupation: z.string().optional(),
   phone: z.string().min(10, "Phone number is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   company_name: z.string().min(1, "Company name is required"),
   street_address: z.string().min(1, "Street address is required"),
   street_address_line_2: z.string().optional(),

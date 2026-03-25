@@ -6,6 +6,20 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
 
+    PERMISSION_LABELS = [
+        "View Tickets",
+        "Create Tickets",
+        "Edit Clients",
+        "Delete Records",
+        "Manage Billing",
+        "Export Data",
+    ]
+
+    permissions = serializers.ListField(
+        child=serializers.ChoiceField(choices=PERMISSION_LABELS),
+        required=False,
+    )
+
     class Meta:
         model = User
         fields = [
@@ -20,14 +34,6 @@ class UserSerializer(serializers.ModelSerializer):
             "assigned_ticket_types",
             "permissions",
         ]
-        
-    permissions = serializers.SerializerMethodField()
-    
-    def get_permissions(self, obj):
-        # Placeholder for frontend compatibility
-        if obj.role == "ADMIN":
-            return ["Full System Access"]
-        return ["View Tickets", "Create Tickets"]
 
     def validate_password(self, value: str):
         user = self.instance if self.instance else None
@@ -36,6 +42,15 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)
+        role = validated_data.get("role")
+        # If permissions were not provided, seed defaults based on role.
+        # (If caller explicitly provides an empty list, we keep it.)
+        if "permissions" not in validated_data:
+            validated_data["permissions"] = (
+                ["View Tickets", "Create Tickets", "Edit Clients", "Delete Records", "Manage Billing", "Export Data"]
+                if role == "ADMIN"
+                else ["View Tickets", "Create Tickets"]
+            )
         user = User(**validated_data)
         if password:
             user.set_password(password)
@@ -47,10 +62,19 @@ class UserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        # Only apply defaults when the caller didn't provide permissions.
+        permissions_in_payload = "permissions" in validated_data
         instance = super().update(instance, validated_data)
         if password:
             instance.set_password(password)
             instance.save(update_fields=["password"])
+        if not permissions_in_payload and not instance.permissions:
+            instance.permissions = (
+                ["View Tickets", "Create Tickets", "Edit Clients", "Delete Records", "Manage Billing", "Export Data"]
+                if instance.role == "ADMIN"
+                else ["View Tickets", "Create Tickets"]
+            )
+            instance.save(update_fields=["permissions"])
         return instance
 
 

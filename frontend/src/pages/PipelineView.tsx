@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay } from "@/lib/data";
+import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay, getStageTransitionError } from "@/lib/data";
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
-import { Plus, Flag, RefreshCw, Clock, Cog, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Plus, Flag, RefreshCw, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,17 @@ import { CalendarIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 const stageIcons: Record<string, React.ReactNode> = {
   "Lead/Inquiry": <Flag className="h-4 w-4" />,
@@ -48,20 +59,7 @@ const formatTicket = (t: any): Ticket => {
         (t.assigned_to ? `User ${t.assigned_to}` : null);
 
     const typeDisplay = getTypeDisplay(t.ticket_type);
-    const statusDisplay = getStatusDisplay(t.status) as PipelineStage;
-    let stageForProjectPipeline: PipelineStage = statusDisplay;
-
-    // Business rule for Project Pipeline:
-    // - New Policy tickets start in Lead/Inquiry
-    // - Renewal tickets start in Renewal
-    // - Once moved to Follow Up/Completed/Discarded, show by that status
-    if (statusDisplay !== "Follow Up" && statusDisplay !== "Completed" && statusDisplay !== "Discarded Leads") {
-      if (typeDisplay === "New Policy") {
-        stageForProjectPipeline = "Lead/Inquiry";
-      } else if (typeDisplay === "Renewal") {
-        stageForProjectPipeline = "Renewal";
-      }
-    }
+    const stageForProjectPipeline = getStatusDisplay(t.status) as PipelineStage;
 
     return {
         id: String(t.id),
@@ -89,6 +87,8 @@ const PipelineView = () => {
   const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [isMoveConfirmOpen, setIsMoveConfirmOpen] = useState(false);
+  const [pendingMove, setPendingMove] = useState<{ ticketId: string; fromStage: PipelineStage; toStage: PipelineStage } | null>(null);
 
   const { data: ticketsData, isLoading } = useQuery({
       queryKey: ["tickets"],
@@ -161,11 +161,30 @@ const PipelineView = () => {
 
     const ticketId = active.id as string;
     const newStage = over.id as PipelineStage;
+    const ticket = localTickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+
+    const fromStage = ticket.stage;
+    if (fromStage === newStage) return;
+
+    const transitionError = getStageTransitionError(fromStage, newStage);
+    if (transitionError) {
+      toast.error(transitionError);
+      return;
+    }
+
+    setPendingMove({ ticketId, fromStage, toStage: newStage });
+    setIsMoveConfirmOpen(true);
+  };
+
+  const confirmMove = () => {
+    if (!pendingMove) return;
+    const { ticketId, toStage } = pendingMove;
 
     // Optimistically update
     setLocalTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
-        return { ...t, stage: newStage };
+        return { ...t, stage: toStage };
       }
       return t;
     }));
@@ -173,8 +192,10 @@ const PipelineView = () => {
     // Dispatch update to API
     updateTicketMutation.mutate({
       id: ticketId,
-      status: getStatusBackendCode(newStage)
+      status: getStatusBackendCode(toStage)
     });
+    setIsMoveConfirmOpen(false);
+    setPendingMove(null);
   };
 
   const currentYear = new Date().getFullYear();
@@ -282,14 +303,7 @@ const PipelineView = () => {
               <span>Loading pipeline...</span>
             </div>
           ) : pipelineBoardStages.map((stage) => {
-            let stageTickets = filteredTickets.filter(t => t.stage === stage);
-            
-            if (stage === "Lead/Inquiry") {
-              stageTickets = stageTickets.filter(t => t.type === "New Policy");
-            }
-            if (stage === "Renewal") {
-              stageTickets = stageTickets.filter(t => t.type === "Renewal");
-            }
+            const stageTickets = filteredTickets.filter(t => t.stage === stage);
 
             const colorString = stageColors[stage] || "text-muted-foreground border-border bg-muted";
             const colors = colorString.split(" ");
@@ -330,6 +344,29 @@ const PipelineView = () => {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <AlertDialog
+        open={isMoveConfirmOpen}
+        onOpenChange={(open) => {
+          setIsMoveConfirmOpen(open);
+          if (!open) setPendingMove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm ticket move</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingMove
+                ? `Move this ticket from ${pendingMove.fromStage} to ${pendingMove.toStage}?`
+                : "Are you sure you want to move this ticket?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMove}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

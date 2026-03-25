@@ -5,7 +5,7 @@ export const customerIssueSchema = z.object({
   last_name: z.string().min(1, "Last name is required"),
   occupation: z.string().optional(),
   phone: z.string().min(10, "Phone number is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   policy_number: z.string().min(1, "Policy number is required"),
   issue_description: z.string().min(1, "Issue description is required"),
   additional_details: z.string().optional(),

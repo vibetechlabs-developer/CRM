@@ -28,5 +28,14 @@ class User(AbstractUser):
         help_text="Comma separated e.g., NEW,RENEWAL. Leave blank for ALL."
     )
 
+    # Fine-grained UI permissions shown/edited in User Control.
+    # Note: current API authorization in the app is still primarily role-based, but
+    # storing these values allows Admin/Super Admin to edit them and see changes persist.
+    permissions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of permission labels (e.g. View Tickets, Create Tickets, ...).",
+    )
+
     def __str__(self):
         return self.username

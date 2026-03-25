@@ -5,7 +5,7 @@ export const cancellationSchema = z.object({
   last_name: z.string().min(1, "Last name is required"),
   occupation: z.string().optional(),
   phone: z.string().min(10, "Phone number is required"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   insurance_type: z.string().min(1, "Please select an insurance type"),
   cancellation_date: z.string().min(1, "Cancellation date is required"),
   cancellation_reason: z.string().min(1, "Reason for cancellation is required"),
