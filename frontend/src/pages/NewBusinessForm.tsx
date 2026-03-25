@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import axios from "axios";
 import api from "@/lib/api";
 import { handleApiError } from "@/lib/error-utils";
 
@@ -72,6 +73,23 @@ const NewBusinessForm = () => {
         toast.success("Form submitted successfully! We will contact you shortly.");
       }
     } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response?.status === 400) {
+        const fieldErrors = error.response.data?.field_errors;
+        if (fieldErrors && typeof fieldErrors === "object") {
+          Object.entries(fieldErrors as Record<string, unknown>).forEach(([field, msgs]) => {
+            const firstMsg =
+              Array.isArray(msgs) ? (msgs[0] as unknown) : (msgs as unknown);
+            if (firstMsg) {
+              form.setError(field as keyof InsuranceFormValues, {
+                type: "server",
+                message: String(firstMsg),
+              });
+            }
+          });
+          return;
+        }
+      }
+
       toast.error(handleApiError(error));
     } finally {
       setIsSubmitting(false);

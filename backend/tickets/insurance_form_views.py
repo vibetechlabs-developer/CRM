@@ -3,6 +3,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from clients.models import Client
 from tickets.models import Ticket
@@ -33,6 +35,17 @@ def submit_insurance_form(request):
     """
     try:
         data = request.data
+
+        # Normalize a view of payload so model fields always receive safe values.
+        # This prevents crashes like "'int' object has no attribute 'strip'" inside Django field prep.
+        if hasattr(data, "items"):
+            # request.data may be a DRF QueryDict-like object; build a plain dict for normalization.
+            raw_payload = {k: v for k, v in data.items()}
+        else:
+            raw_payload = data
+
+        # Ensure we only use normalized payload below.
+        data = raw_payload
         
         # Extract client information
         first_name = _safe_get_text(data, 'first_name')
@@ -62,12 +75,26 @@ def submit_insurance_form(request):
         
         full_address = ', '.join(address_parts) if address_parts else address
         
-        # Validate required fields
-        if not first_name or not last_name or not email or not phone:
-            return Response(
-                {'error': 'First name, last name, email, and phone are required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Validate required fields (return field-level errors so frontend can show inline messages)
+        field_errors: dict[str, list[str]] = {}
+        if not first_name:
+            field_errors["first_name"] = ["First name is required"]
+        if not last_name:
+            field_errors["last_name"] = ["Last name is required"]
+        if not email:
+            field_errors["email"] = ["Email is required"]
+        if not phone:
+            field_errors["phone"] = ["Phone number is required"]
+
+        if field_errors:
+            return Response({"success": False, "field_errors": field_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate email format
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            field_errors["email"] = ["Invalid email address"]
+            return Response({"success": False, "field_errors": field_errors}, status=status.HTTP_400_BAD_REQUEST)
         
         # Find or create client
         client, created = Client.objects.get_or_create(
@@ -218,6 +245,13 @@ def submit_insurance_form(request):
             square_footage = _safe_get_text(data, 'square_footage')
             if square_footage:
                 details_dict["Square Footage"] = square_footage
+
+        # Final coercion: ensure model receives strings only for text/JSON fields we set.
+        # (JSONField will accept non-strings, but keeping them consistent prevents edge cases.)
+        details_dict = {str(k): _clean_str(v) for k, v in (details_dict or {}).items()}
+        additional_details = _clean_str(additional_details)
+        insurance_type = _clean_str(insurance_type) if insurance_type else "Auto Insurance"
+        full_address = _clean_str(full_address)
         
         # Determine source based on authentication
         # If user is authenticated, it's a manual entry; otherwise, it's from web form

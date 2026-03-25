@@ -110,6 +110,21 @@ class NotificationSerializer(serializers.ModelSerializer):
     changed_by_name = serializers.SerializerMethodField()
     changed_by_username = serializers.SerializerMethodField()
 
+    # Ticket-related fields so the frontend can show "what ticket is this?" quickly.
+    ticket_no = serializers.CharField(source="ticket.ticket_no", read_only=True)
+    ticket_type = serializers.CharField(source="ticket.ticket_type", read_only=True)
+    ticket_status = serializers.CharField(source="ticket.status", read_only=True)
+    ticket_priority = serializers.CharField(source="ticket.priority", read_only=True)
+    insurance_type = serializers.CharField(source="ticket.insurance_type", read_only=True)
+    ticket_details = serializers.JSONField(source="ticket.details", read_only=True)
+    ticket_additional_notes = serializers.CharField(
+        source="ticket.additional_notes",
+        read_only=True,
+    )
+    follow_up_date = serializers.DateTimeField(source="ticket.follow_up_date", read_only=True)
+    client_name = serializers.SerializerMethodField()
+    client_email = serializers.SerializerMethodField()
+
     def _get_actor(self, obj):
         if obj.created_by:
             return obj.created_by
@@ -154,6 +169,19 @@ class NotificationSerializer(serializers.ModelSerializer):
     def get_changed_by_username(self, obj):
         actor = self._get_actor(obj)
         return actor.username if actor else None
+
+    def get_client_name(self, obj):
+        if not getattr(obj, "ticket", None) or not getattr(obj.ticket, "client", None):
+            return None
+        first = obj.ticket.client.first_name or ""
+        last = obj.ticket.client.last_name or ""
+        full_name = f"{first} {last}".strip()
+        return full_name or None
+
+    def get_client_email(self, obj):
+        if not getattr(obj, "ticket", None) or not getattr(obj.ticket, "client", None):
+            return None
+        return obj.ticket.client.email
 
     class Meta:
         model = Notification

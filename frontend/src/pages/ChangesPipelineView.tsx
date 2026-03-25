@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay, getStageTransitionError } from "@/lib/data";
+import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay } from "@/lib/data";
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
@@ -166,12 +166,6 @@ const ChangesPipelineView = () => {
     if (!ticket) return;
     const fromStage = ticket.stage;
     if (fromStage === newStage) return;
-
-    const transitionError = getStageTransitionError(fromStage, newStage);
-    if (transitionError) {
-      toast.error(transitionError);
-      return;
-    }
 
     setPendingMove({ ticketId, fromStage, toStage: newStage });
     setIsMoveConfirmOpen(true);

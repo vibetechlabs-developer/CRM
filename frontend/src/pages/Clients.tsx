@@ -29,6 +29,16 @@ function getApiErrorMessage(error: unknown): string {
     if (typeof data === "string" && data.trim()) return data;
     if (data?.detail && typeof data.detail === "string") return data.detail;
     if (data?.message && typeof data.message === "string") return data.message;
+
+    // DRF validation errors typically look like: { "phone": ["..."] }
+    if (data && typeof data === "object") {
+      const keys = Object.keys(data);
+      const firstKey = keys.length ? keys[0] : undefined;
+      const firstVal = firstKey ? (data as any)[firstKey] : undefined;
+      if (Array.isArray(firstVal) && typeof firstVal[0] === "string") return firstVal[0];
+      if (typeof firstVal === "string") return firstVal;
+    }
+
     if (error.message) return error.message;
     return "Request failed";
   }
@@ -43,6 +53,30 @@ function useDebouncedValue<T>(value: T, delayMs = 250) {
     return () => window.clearTimeout(handle);
   }, [value, delayMs]);
   return debounced;
+}
+
+function validatePhoneInput(phone: string): string | null {
+  const raw = (phone ?? "").trim();
+  if (!raw) return "Phone number is required.";
+
+  if (raw.includes("|")) return "Phone number must not contain '|'.";
+
+  const digitsOnly = raw.replace(/\D/g, "");
+  if (!digitsOnly) return "Enter a valid phone number.";
+  if (digitsOnly.length < 9 || digitsOnly.length > 15) {
+    return "Phone number must be between 9 and 15 digits.";
+  }
+  return null;
+}
+
+function formatPhoneForDisplay(phone: string): string {
+  // Keep it simple: format as "(XXX)YYYY..." for the digits the user types.
+  // Backend will store digits-only.
+  const digitsOnly = (phone ?? "").replace(/\D/g, "").slice(0, 15);
+  if (!digitsOnly) return "";
+
+  if (digitsOnly.length <= 3) return `(${digitsOnly}`;
+  return `(${digitsOnly.slice(0, 3)})${digitsOnly.slice(3)}`;
 }
 
 const Clients = () => {
@@ -162,6 +196,8 @@ const Clients = () => {
     address: string;
   } | null>(null);
 
+  const [editPhoneError, setEditPhoneError] = useState<string | null>(null);
+
   const clients: Client[] = useMemo(() => data?.items || [], [data]);
   const totalCount: number = useMemo(() => data?.totalCount || 0, [data]);
   const totalPages = Math.max(1, Math.ceil(totalCount / 10));
@@ -215,6 +251,15 @@ const Clients = () => {
   });
 
   const handleAddClient = () => {
+    const phoneError = validatePhoneInput(newClient.phone);
+    if (phoneError) {
+      toast({
+        title: "Invalid phone",
+        description: phoneError,
+        variant: "destructive",
+      });
+      return;
+    }
     addClientMutation.mutate();
   };
 
@@ -230,9 +275,14 @@ const Clients = () => {
         first_name: client.firstName ?? firstNameFromName,
         last_name: client.lastName ?? lastNameFromName,
         email: client.email ?? "",
-        phone: client.phone ?? "",
+        phone: formatPhoneForDisplay(client.phone ?? ""),
         address: client.address ?? "",
       });
+      setEditPhoneError(
+        validatePhoneInput(formatPhoneForDisplay(client.phone ?? "")),
+      );
+    } else {
+      setEditPhoneError(null);
     }
   };
 
@@ -327,7 +377,10 @@ const Clients = () => {
                 <Input
                   value={newClient.phone}
                   onChange={(e) =>
-                    setNewClient({ ...newClient, phone: e.target.value })
+                    setNewClient({
+                      ...newClient,
+                      phone: formatPhoneForDisplay(e.target.value),
+                    })
                   }
                   placeholder="Enter phone number"
                 />
@@ -475,7 +528,7 @@ const Clients = () => {
                       </div>
                       {client.phone && (
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />{client.phone}
+                          <Phone className="h-3 w-3" />{formatPhoneForDisplay(client.phone) || client.phone}
                         </div>
                       )}
                     </div>
@@ -561,6 +614,7 @@ const Clients = () => {
             setActionType(null);
             setSelectedClient(null);
             setEditClient(null);
+            setEditPhoneError(null);
           }
         }}
       >
@@ -587,7 +641,9 @@ const Clients = () => {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="text-sm font-medium text-right text-muted-foreground">Phone</span>
-                    <span className="text-sm col-span-3">{selectedClient.phone || "N/A"}</span>
+                    <span className="text-sm col-span-3">
+                      {formatPhoneForDisplay(selectedClient.phone) || selectedClient.phone || "N/A"}
+                    </span>
                   </div>
                   <div className="grid grid-cols-4 items-start gap-4">
                     <span className="text-sm font-medium text-right text-muted-foreground mt-1">Address</span>
@@ -644,10 +700,18 @@ const Clients = () => {
                     <Input
                       value={editClient.phone}
                       onChange={(e) =>
-                        setEditClient({ ...editClient, phone: e.target.value })
+                        (() => {
+                          const formatted = formatPhoneForDisplay(e.target.value);
+                          setEditClient({ ...editClient, phone: formatted });
+                          setEditPhoneError(validatePhoneInput(formatted));
+                        })()
                       }
                       placeholder="Enter phone number"
+                      className={editPhoneError ? "border-destructive focus-visible:ring-destructive" : undefined}
                     />
+                    {editPhoneError && (
+                      <p className="text-xs text-destructive mt-1">{editPhoneError}</p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Address</Label>
@@ -676,12 +740,20 @@ const Clients = () => {
             </Button>
             {actionType === "edit" && editClient && (
               <Button
-                onClick={() => updateClientMutation.mutate()}
+                onClick={() => {
+                  const phoneError = validatePhoneInput(editClient.phone);
+                  if (phoneError) {
+                    setEditPhoneError(phoneError);
+                    return;
+                  }
+                  updateClientMutation.mutate();
+                }}
                 disabled={
                   updateClientMutation.status === "pending" ||
                   !editClient.first_name ||
                   !editClient.last_name ||
-                  !editClient.email
+                  !editClient.email ||
+                  !editClient.phone
                 }
               >
                 {updateClientMutation.status === "pending" ? "Saving..." : "Save changes"}

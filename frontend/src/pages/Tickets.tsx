@@ -13,7 +13,6 @@ import {
   formatBackendTicket,
   getPriorityBackendCode,
   getStatusBackendCode,
-  getStageTransitionError,
 } from "@/lib/data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -80,7 +79,8 @@ const priorityStyles: Record<Priority, string> = {
 const requestTypeOptions = [
   { label: "New Policy", value: "NEW" },
   { label: "Renewal", value: "RENEWAL" },
-  { label: "Changes", value: "CHANGES" },
+  { label: "Adjustment", value: "ADJUSTMENT" },
+  { label: "Customer Issue", value: "CUSTOMER_ISSUE" },
   { label: "Cancellation", value: "CANCELLATION" },
 ];
 
@@ -250,12 +250,6 @@ const Tickets = () => {
     const ticket = formattedTickets.find((t) => t.id === ticketId);
     if (!ticket) return;
     if (ticket.stage === newStage) return;
-
-    const transitionError = getStageTransitionError(ticket.stage, newStage);
-    if (transitionError) {
-      toast.error(transitionError);
-      return;
-    }
 
     setPendingStatusChange({
       ticketId,
@@ -461,12 +455,6 @@ const Tickets = () => {
           const isStageChanged = !!ticket && String(ticket.stage) !== String(status);
 
           if (ticket && isStageChanged) {
-            const transitionError = getStageTransitionError(ticket.stage, status);
-            if (transitionError) {
-              toast.error(transitionError);
-              return;
-            }
-
             setPendingStatusChange({
               ticketId: id,
               fromStage: ticket.stage,

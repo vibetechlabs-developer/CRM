@@ -29,7 +29,6 @@ class TicketViewSet(ModelViewSet):
 
     filterset_fields = {
         'status': ['exact'],
-        'ticket_type': ['exact'],
         'assigned_to': ['exact'],
         'client': ['exact'],
         'insurance_type': ['exact'],
@@ -49,9 +48,28 @@ class TicketViewSet(ModelViewSet):
         user = self.request.user
         qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
         if getattr(user, "role", None) in ("ADMIN", "MANAGER"):
-            return qs
+            pass
         # AGENT: only their assigned tickets
-        return qs.filter(assigned_to=user)
+        else:
+            qs = qs.filter(assigned_to=user)
+
+        # ticket_type is special in this app:
+        # - UI uses ADJUSTMENT / CUSTOMER_ISSUE, while backend stores adjustment as CHANGES (+ a marker for customer issue).
+        ticket_type_param = self.request.query_params.get("ticket_type")
+        if ticket_type_param:
+            code = ticket_type_param.strip().upper()
+            if code == "CUSTOMER_ISSUE":
+                qs = qs.filter(ticket_type__in=["CHANGES", "ADJUSTMENT"]).filter(
+                    additional_notes__icontains="[Form: Customer Issue]"
+                )
+            elif code == "ADJUSTMENT":
+                qs = qs.filter(ticket_type__in=["CHANGES", "ADJUSTMENT"]).exclude(
+                    additional_notes__icontains="[Form: Customer Issue]"
+                )
+            else:
+                qs = qs.filter(ticket_type=code)
+
+        return qs
 
     def perform_create(self, serializer):
         """
@@ -73,7 +91,7 @@ class TicketViewSet(ModelViewSet):
             return
 
         # ADMIN flow: continuity assignment for non-NEW types
-        if ticket.ticket_type in ["RENEWAL", "ADJUSTMENT", "CANCELLATION"] and not ticket.assigned_to_id:
+        if ticket.ticket_type in ["RENEWAL", "CHANGES", "ADJUSTMENT", "CANCELLATION"] and not ticket.assigned_to_id:
             previous = (
                 Ticket.objects.filter(client=ticket.client, assigned_to__isnull=False)
                 .exclude(id=ticket.id)
@@ -293,6 +311,11 @@ class NotificationViewSet(ModelViewSet):
 
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    # Allow filtering notifications by the date they were created.
+    # Example: GET /api/notifications/?created_at__date=2026-03-25
+    filterset_fields = {"created_at": ["date", "year", "month"]}
+    ordering_fields = ["created_at"]
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)

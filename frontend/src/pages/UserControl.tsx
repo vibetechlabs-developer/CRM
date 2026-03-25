@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/ui/spinner";
+import { getPriorityDisplay, getStatusDisplay, getTypeDisplay } from "@/lib/data";
+import { Info } from "lucide-react";
 
 const PERMISSION_OPTIONS = [
   "View Tickets",
@@ -24,6 +26,37 @@ const PERMISSION_OPTIONS = [
   "Export Data",
 ];
 
+const TICKET_TYPE_OPTIONS = [
+  { code: "NEW", label: "New Policy" },
+  { code: "RENEWAL", label: "Renewal" },
+  { code: "ADJUSTMENT", label: "Adjustment" },
+  { code: "CUSTOMER_ISSUE", label: "Customer Issue" },
+  { code: "CANCELLATION", label: "Cancellation" },
+] as const;
+
+const parseTicketTypeCodes = (raw?: string): string[] => {
+  const cleaned = (raw ?? "").trim();
+  if (!cleaned) return [];
+  const codes = cleaned
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.toUpperCase());
+
+  // UI no longer shows `CHANGES` directly.
+  // Legacy `CHANGES` historically covered both "Adjustment" and "Customer Issue",
+  // so map it to both buckets for correct effective behavior.
+  const mapped: string[] = [];
+  for (const c of codes) {
+    if (c === "CHANGES") {
+      mapped.push("ADJUSTMENT", "CUSTOMER_ISSUE");
+      continue;
+    }
+    mapped.push(c);
+  }
+  return Array.from(new Set(mapped));
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatUser = (user: any) => ({
    id: user.id,
@@ -31,6 +64,7 @@ const formatUser = (user: any) => ({
    email: user.email,
    role: user.role === "ADMIN" ? "Admin" : (user.role === "MANAGER" ? "Manager" : "Agent"),
    permissions: user.permissions || [],
+   assignedTicketTypesRaw: user.assigned_ticket_types || "",
 });
 
 const UserControl = () => {
@@ -44,7 +78,57 @@ const UserControl = () => {
       }
   });
 
-  const users = usersData.map(formatUser);
+  const { data: ticketStatsData = [] } = useQuery({
+      queryKey: ["user-ticket-stats"],
+      enabled: me?.role === "ADMIN",
+      queryFn: async () => {
+        const res = await api.get("/api/users/ticket_stats/");
+        return Array.isArray(res.data) ? res.data : (res.data?.results || []);
+      }
+  });
+
+  const statsByUserId = useMemo(() => {
+    const map = new Map<number, any>();
+    for (const s of ticketStatsData || []) {
+      if (typeof s?.userId === "number") map.set(s.userId, s);
+    }
+    return map;
+  }, [ticketStatsData]);
+
+  const users = usersData.map((u: any) => {
+    const base = formatUser(u);
+    return {
+      ...base,
+      stats: statsByUserId.get(base.id) ?? null,
+    };
+  });
+
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [statsUser, setStatsUser] = useState<any>(null);
+
+  const openStats = (user: any) => {
+    setStatsUser(user);
+    setIsStatsOpen(true);
+    setTicketDetails(null);
+    setTicketDetailsLoading(true);
+    api
+      .get(`/api/users/${user.id}/ticket_details/`)
+      .then((res) => setTicketDetails(res.data))
+      .catch(() => {
+        toast.error("Failed to load ticket details");
+      })
+      .finally(() => setTicketDetailsLoading(false));
+  };
+
+  const closeStats = () => {
+    setIsStatsOpen(false);
+    setStatsUser(null);
+    setTicketDetails(null);
+    setTicketDetailsLoading(false);
+  };
+
+  const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
+  const [ticketDetails, setTicketDetails] = useState<any>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -58,11 +142,15 @@ const UserControl = () => {
     email: "",
     role: "AGENT" as "ADMIN" | "AGENT" | "MANAGER",
     password: "",
+    ticketTypesAll: true,
+    ticketTypeCodes: [] as string[],
   });
   const [editForm, setEditForm] = useState({
     fullName: "",
     email: "",
     role: "Agent" as "Admin" | "Manager" | "Agent",
+    ticketTypesAll: true,
+    ticketTypeCodes: [] as string[],
   });
 
   const canSubmitNewUser = useMemo(() => {
@@ -83,6 +171,7 @@ const UserControl = () => {
         email: newUser.email.trim(),
         role: newUser.role,
         password: newUser.password,
+        assigned_ticket_types: newUser.ticketTypesAll ? "" : newUser.ticketTypeCodes.join(","),
       };
       const res = await api.post("/api/users/", payload);
       return res.data;
@@ -90,7 +179,16 @@ const UserControl = () => {
     onSuccess: () => {
       toast.success("User created");
       setIsAddOpen(false);
-      setNewUser({ username: "", first_name: "", last_name: "", email: "", role: "AGENT", password: "" });
+      setNewUser({
+        username: "",
+        first_name: "",
+        last_name: "",
+        email: "",
+        role: "AGENT",
+        password: "",
+        ticketTypesAll: true,
+        ticketTypeCodes: [],
+      });
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
     onError: (err: any) => {
@@ -119,6 +217,7 @@ const UserControl = () => {
         last_name: rest.join(" "),
         email: editForm.email.trim(),
         role: roleCode,
+        assigned_ticket_types: editForm.ticketTypesAll ? "" : editForm.ticketTypeCodes.join(","),
       };
       const res = await api.patch(`/api/users/${selectedUser.id}/`, payload);
       return res.data;
@@ -167,10 +266,14 @@ const UserControl = () => {
 
   useEffect(() => {
     if (!selectedUser || actionType !== "edit") return;
+    const raw = (selectedUser as any).assignedTicketTypesRaw as string | undefined;
+    const codes = parseTicketTypeCodes(raw);
     setEditForm({
       fullName: selectedUser.name || "",
       email: selectedUser.email || "",
       role: (selectedUser.role || "Agent") as "Admin" | "Manager" | "Agent",
+      ticketTypesAll: codes.length === 0,
+      ticketTypeCodes: codes,
     });
   }, [selectedUser, actionType]);
 
@@ -228,6 +331,12 @@ const UserControl = () => {
               <tr className="border-b bg-secondary/50">
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">User</th>
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Role</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Assigned</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Updated</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Completed</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Today</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Today Completed</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Ticket Types</th>
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden sm:table-cell">Access Rights</th>
                 <th className="text-right p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Actions</th>
               </tr>
@@ -235,7 +344,7 @@ const UserControl = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">
+                  <td colSpan={10} className="p-4 text-center text-sm text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Spinner size="sm" />
                       <span>Loading users...</span>
@@ -244,7 +353,7 @@ const UserControl = () => {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">No users found.</td>
+                  <td colSpan={10} className="p-4 text-center text-sm text-muted-foreground">No users found.</td>
                 </tr>
               ) : users.map((user) => (
                 <tr key={user.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
@@ -271,6 +380,34 @@ const UserControl = () => {
                       {user.role}
                     </span>
                   </td>
+                  <td className="p-4 hidden">
+                    <p className="text-sm font-semibold">{user.stats?.assignedTicketsCount ?? 0}</p>
+                  </td>
+                  <td className="p-4 hidden">
+                    <p className="text-sm font-semibold">{user.stats?.updatedTicketsCount ?? 0}</p>
+                  </td>
+                  <td className="p-4 hidden">
+                    <p className="text-sm font-semibold">{user.stats?.completedByUserTicketsCount ?? 0}</p>
+                  </td>
+                  <td className="p-4 hidden">
+                    <p className="text-sm font-semibold">{user.stats?.todayTicketsCount ?? 0}</p>
+                  </td>
+                  <td className="p-4 hidden">
+                    <p className="text-sm font-semibold">{user.stats?.todayCompletedTicketsCount ?? 0}</p>
+                  </td>
+                  <td className="p-4 hidden">
+                    {(() => {
+                      const counts = user.stats?.ticketTypeCounts ?? [];
+                      const lookup = new Map<string, number>(
+                        counts.map((x: any) => [String(x?.ticket_type ?? ""), Number(x?.count ?? 0)])
+                      );
+                      const order = ["NEW", "RENEWAL", "CHANGES", "CANCELLATION"];
+                      const summary = order
+                        .map((code) => `${getTypeDisplay(code as any)}: ${lookup.get(code) ?? 0}`)
+                        .join(", ");
+                      return <span className="text-xs text-muted-foreground">{summary}</span>;
+                    })()}
+                  </td>
                   <td className="p-4 hidden sm:table-cell">
                     <div className="flex flex-wrap gap-1.5 max-w-[250px]">
                       {user.permissions.length > 0 ? user.permissions.map(p => (
@@ -284,6 +421,15 @@ const UserControl = () => {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => openStats(user)}
+                        aria-label={`View ${user.name} ticket stats`}
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openAction(user, "access")}>
                         <KeyRound className="h-4 w-4" />
                       </Button>
@@ -300,9 +446,155 @@ const UserControl = () => {
         </div>
       </Card>
 
+      {/* Ticket Stats Details Dialog */}
+      <Dialog
+        open={isStatsOpen}
+        onOpenChange={(open) => {
+          setIsStatsOpen(open);
+          if (!open) closeStats();
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader>
+            <DialogTitle>Ticket Details</DialogTitle>
+            <DialogDescription>
+              {statsUser ? (
+                <span>
+                  Stats for <span className="font-semibold">{statsUser.name}</span>
+                </span>
+              ) : (
+                "Ticket stats"
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {statsUser?.stats ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Card className="p-4 border shadow-sm">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Assigned</p>
+                    <p className="text-2xl font-bold">{statsUser.stats.assignedTicketsCount ?? 0}</p>
+                  </Card>
+                  <Card className="p-4 border shadow-sm">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Updated</p>
+                    <p className="text-2xl font-bold">{statsUser.stats.updatedTicketsCount ?? 0}</p>
+                  </Card>
+                  <Card className="p-4 border shadow-sm">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Completed</p>
+                    <p className="text-2xl font-bold">{statsUser.stats.completedByUserTicketsCount ?? 0}</p>
+                  </Card>
+                  <Card className="p-4 border shadow-sm">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Today</p>
+                    <p className="text-2xl font-bold">{statsUser.stats.todayTicketsCount ?? 0}</p>
+                  </Card>
+                  <Card className="p-4 border shadow-sm sm:col-span-2">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Today Completed</p>
+                    <p className="text-2xl font-bold">{statsUser.stats.todayCompletedTicketsCount ?? 0}</p>
+                  </Card>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Ticket Type Breakdown</p>
+                  <div className="rounded-md border overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2">
+                      {(statsUser.stats.ticketTypeCounts ?? []).map((t: any) => (
+                        <div key={String(t.ticket_type ?? "")} className="p-3 border-t sm:border-t-0 sm:border-r last:sm:border-r-0">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">{getTypeDisplay(t.ticket_type)}</p>
+                          <p className="text-lg font-bold">{t.count ?? 0}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">Stats not available.</div>
+            )}
+
+            <div className="space-y-2 pt-3 border-t">
+              <p className="text-sm font-semibold">Assigned Tickets (All Details)</p>
+              {ticketDetailsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner size="sm" />
+                  Loading tickets...
+                </div>
+              ) : ticketDetails?.tickets?.length ? (
+                <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+                  {ticketDetails.tickets.map((t: any) => (
+                    <Card key={t.id} className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-semibold">{t.ticket_no}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {getTypeDisplay(t.ticket_type)} • {getStatusDisplay(t.status)} • {getPriorityDisplay(t.priority)}
+                          </p>
+                        </div>
+                        <span className="text-[11px] px-2 py-1 rounded-full border bg-background text-muted-foreground">
+                          {t.source}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Client:</span>{" "}
+                          <span className="font-medium">{t.client_name || "Unknown"}</span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Insurance:</span>{" "}
+                          <span className="font-medium">{t.insurance_type || "-"}</span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Created:</span>{" "}
+                          <span className="font-medium">{t.created_at ? new Date(t.created_at).toLocaleString() : "-"}</span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Updated:</span>{" "}
+                          <span className="font-medium">{t.updated_at ? new Date(t.updated_at).toLocaleString() : "-"}</span>
+                        </div>
+                        {t.follow_up_date ? (
+                          <div className="text-sm sm:col-span-2">
+                            <span className="text-muted-foreground">Follow Up:</span>{" "}
+                            <span className="font-medium">{t.follow_up_date ? new Date(t.follow_up_date).toLocaleString() : "-"}</span>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {t.additional_notes ? (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Additional Notes</p>
+                          <p className="text-sm whitespace-pre-wrap break-words border rounded-md p-2 mt-1 bg-secondary/20">
+                            {t.additional_notes}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Details JSON</p>
+                        <pre className="text-[11px] mt-1 max-h-44 overflow-y-auto whitespace-pre-wrap break-words rounded-md border bg-secondary/20 p-2">
+                          {JSON.stringify(t.details ?? {}, null, 2)}
+                        </pre>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No tickets found for this user.</div>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={closeStats}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Action Dialog (Edit / Access) */}
       <Dialog open={actionType === "edit" || actionType === "access"} onOpenChange={() => setActionType(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {actionType === "edit" ? "Edit User Profile" : "Manage Access Rights"}
@@ -359,6 +651,67 @@ const UserControl = () => {
                         <SelectItem value="Agent">Agent</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-1.5 pt-2">
+                    <Label className="text-sm font-medium">Ticket Types (Agent Can Receive)</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="ticket-types-all-edit"
+                        checked={editForm.ticketTypesAll}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setEditForm((s) => ({
+                            ...s,
+                            ticketTypesAll: checked,
+                            ticketTypeCodes: checked ? [] : s.ticketTypeCodes,
+                          }));
+                        }}
+                        className="rounded border-border"
+                      />
+                      <label htmlFor="ticket-types-all-edit" className="text-sm select-none">
+                        All ticket types
+                      </label>
+                    </div>
+
+                    {!editForm.ticketTypesAll && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {TICKET_TYPE_OPTIONS.map((t) => {
+                          const id = `ticket-type-${t.code}-edit`;
+                          const checked = editForm.ticketTypeCodes.includes(t.code);
+                          return (
+                            <div key={t.code} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={id}
+                                checked={checked}
+                                onChange={(e) => {
+                                  const nextChecked = e.target.checked;
+                                  setEditForm((s) => {
+                                    const set = new Set(s.ticketTypeCodes);
+                                    if (nextChecked) set.add(t.code);
+                                    else set.delete(t.code);
+                                    return {
+                                      ...s,
+                                      ticketTypesAll: false,
+                                      ticketTypeCodes: Array.from(set),
+                                    };
+                                  });
+                                }}
+                                className="rounded border-border"
+                              />
+                              <label htmlFor={id} className="text-sm select-none">
+                                {t.label}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      If you select specific types, auto-assignment will respect these exact ticket-type codes.
+                    </p>
                   </div>
                 </div>
               )}
@@ -442,7 +795,7 @@ const UserControl = () => {
 
       {/* Add User Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add User</DialogTitle>
             <DialogDescription>Create a new agent/admin account.</DialogDescription>
@@ -485,6 +838,67 @@ const UserControl = () => {
                   <SelectItem value="MANAGER">Manager</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-sm font-medium">Ticket Types (Agent Can Receive)</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="ticket-types-all-add"
+                  checked={newUser.ticketTypesAll}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setNewUser((s) => ({
+                      ...s,
+                      ticketTypesAll: checked,
+                      ticketTypeCodes: checked ? [] : s.ticketTypeCodes,
+                    }));
+                  }}
+                  className="rounded border-border"
+                />
+                <label htmlFor="ticket-types-all-add" className="text-sm select-none">
+                  All ticket types
+                </label>
+              </div>
+
+              {!newUser.ticketTypesAll && (
+                <div className="grid grid-cols-2 gap-2">
+                  {TICKET_TYPE_OPTIONS.map((t) => {
+                    const id = `ticket-type-${t.code}-add`;
+                    const checked = newUser.ticketTypeCodes.includes(t.code);
+                    return (
+                      <div key={t.code} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={id}
+                          checked={checked}
+                          onChange={(e) => {
+                            const nextChecked = e.target.checked;
+                            setNewUser((s) => {
+                              const set = new Set(s.ticketTypeCodes);
+                              if (nextChecked) set.add(t.code);
+                              else set.delete(t.code);
+                              return {
+                                ...s,
+                                ticketTypesAll: false,
+                                ticketTypeCodes: Array.from(set),
+                              };
+                            });
+                          }}
+                          className="rounded border-border"
+                        />
+                        <label htmlFor={id} className="text-sm select-none">
+                          {t.label}
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Leave “All ticket types” checked for unrestricted auto-assignment.
+              </p>
             </div>
 
             <div className="space-y-1.5">

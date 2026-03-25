@@ -33,37 +33,66 @@ def auto_assign_ticket(ticket):
 
     best_agent = None
 
+    def get_effective_ticket_type_code(ticket) -> str:
+        """
+        Convert backend ticket representation into UI/agent restriction buckets.
+
+        - `CUSTOMER_ISSUE`: when `additional_notes` contains the marker added by customer-issue form
+        - `ADJUSTMENT`: all non-customer-issue CHANGES tickets (and legacy ADJUSTMENT records)
+        - otherwise: use the raw `ticket.ticket_type` code
+        """
+        notes = (getattr(ticket, "additional_notes", None) or "") or ""
+        if "[Form: Customer Issue]" in notes:
+            return "CUSTOMER_ISSUE"
+
+        raw = (getattr(ticket, "ticket_type", None) or "").strip().upper()
+        if raw in {"CHANGES", "ADJUSTMENT"}:
+            return "ADJUSTMENT"
+        return raw
+
+    def agent_accepts_ticket_type(agent: User, ticket) -> bool:
+        """
+        Treat empty/blank assigned_ticket_types as "ALL".
+        Match effective ticket type as an exact comma-separated token.
+        """
+        raw = (getattr(agent, "assigned_ticket_types", "") or "").strip()
+        if not raw:
+            return True
+        tokens = [t.strip().upper() for t in raw.split(",") if t.strip()]
+        effective_code = get_effective_ticket_type_code(ticket)
+
+        # Legacy support:
+        # Older UI stored `CHANGES` for both "Adjustment" and "Customer Issue".
+        if effective_code == "ADJUSTMENT":
+            return "ADJUSTMENT" in tokens or "CHANGES" in tokens
+        if effective_code == "CUSTOMER_ISSUE":
+            return "CUSTOMER_ISSUE" in tokens or "CHANGES" in tokens
+
+        return effective_code in tokens
+
     # Strategy 1: Match insurance type AND ticket type preferences
     agents = get_agents_with_workload(
-        Q(role="AGENT") &
-        Q(preferred_insurance_types__icontains=ticket.insurance_type) &
-        (
-            Q(assigned_ticket_types__icontains=ticket.ticket_type) |
-            Q(assigned_ticket_types__isnull=True) |
-            Q(assigned_ticket_types="")
-        )
+        Q(role="AGENT") & Q(preferred_insurance_types__icontains=ticket.insurance_type)
     )
-    best_agent = agents.first()
+    for a in agents:
+        if agent_accepts_ticket_type(a, ticket):
+            best_agent = a
+            break
 
     # Strategy 2: Fallback - Match insurance type only (ignore ticket type)
     if not best_agent:
         agents = get_agents_with_workload(
-            Q(role="AGENT") &
-            Q(preferred_insurance_types__icontains=ticket.insurance_type)
+            Q(role="AGENT") & Q(preferred_insurance_types__icontains=ticket.insurance_type)
         )
         best_agent = agents.first()
 
     # Strategy 3: Fallback - Match ticket type only (ignore insurance type)
     if not best_agent:
-        agents = get_agents_with_workload(
-            Q(role="AGENT") &
-            (
-                Q(assigned_ticket_types__icontains=ticket.ticket_type) |
-                Q(assigned_ticket_types__isnull=True) |
-                Q(assigned_ticket_types="")
-            )
-        )
-        best_agent = agents.first()
+        agents = get_agents_with_workload(Q(role="AGENT"))
+        for a in agents:
+            if agent_accepts_ticket_type(a, ticket):
+                best_agent = a
+                break
 
     # Strategy 4: Fallback - Any available agent (least workload)
     if not best_agent:

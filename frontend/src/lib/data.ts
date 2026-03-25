@@ -5,6 +5,7 @@ export type RequestType =
   | "New Policy"
   | "Renewal"
   | "Changes"
+  | "Adjustment"
   | "Cancellation"
   | "Customer Issue";
 export type InsuranceType = "Home Insurance" | "Auto Insurance" | "Life Insurance" | "Business Insurance" | "Health Insurance";
@@ -118,6 +119,10 @@ export const getTypeDisplay = (typeCode: TicketTypeCode): RequestType | string =
       return "Renewal";
     case "CHANGES":
       return "Changes";
+    case "ADJUSTMENT":
+      return "Adjustment";
+    case "CUSTOMER_ISSUE":
+      return "Customer Issue";
     case "CANCELLATION":
       return "Cancellation";
     default:
@@ -349,20 +354,11 @@ export const pipelineStages: PipelineStage[] = [
   "Discarded Leads",
 ];
 
-const restrictedStatusTransitions: Partial<Record<PipelineStage, PipelineStage[]>> = {
-  // New Policy flow (Lead/Inquiry + Follow Up) should never enter Renewal section.
-  "Lead/Inquiry": ["Renewal"],
-
-  // Follow Up and Completed cannot go back into Lead/Inquiry or Renewal.
-  "Follow Up": ["Lead/Inquiry", "Renewal"],
-  "Completed": ["Lead/Inquiry", "Renewal"],
-
-  // Renewal tickets cannot move into Lead/Inquiry.
-  "Renewal": ["Lead/Inquiry"],
-
-  // Changes tickets also cannot move into Lead/Inquiry or Renewal.
-  "Changes": ["Lead/Inquiry", "Renewal"],
-};
+// Ticket stages are editable/correctable by users, including moving between
+// Follow Up -> Renewal, and moving back to earlier stages.
+// Pipeline drag/drop and ticket module both rely on `getStageTransitionError`,
+// so we intentionally allow all transitions.
+const restrictedStatusTransitions: Partial<Record<PipelineStage, PipelineStage[]>> = {};
 
 export const getStageTransitionError = (
   fromStage: PipelineStage | string,

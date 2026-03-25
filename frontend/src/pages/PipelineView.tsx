@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay, getStageTransitionError } from "@/lib/data";
+import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBackendCode, getPriorityDisplay } from "@/lib/data";
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
-import { Plus, Flag, RefreshCw, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Plus, Flag, RefreshCw, Clock, CheckCircle, Trash2, SlidersHorizontal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,6 +29,7 @@ const stageIcons: Record<string, React.ReactNode> = {
   "Lead/Inquiry": <Flag className="h-4 w-4" />,
   "Renewal": <RefreshCw className="h-4 w-4" />,
   "Follow Up": <Clock className="h-4 w-4" />,
+  "Changes": <SlidersHorizontal className="h-4 w-4" />,
   "Completed": <CheckCircle className="h-4 w-4" />,
   "Discarded Leads": <Trash2 className="h-4 w-4" />,
 };
@@ -37,6 +38,7 @@ const stageColors: Record<string, string> = {
   "Lead/Inquiry": "text-primary border-primary/20 bg-primary/10",
   "Renewal": "text-warning border-warning/20 bg-warning/10",
   "Follow Up": "text-info border-info/20 bg-info/10",
+  "Changes": "text-purple-500 border-purple-500/20 bg-purple-500/10",
   "Completed": "text-success border-success/20 bg-success/10",
   "Discarded Leads": "text-muted-foreground border-border bg-muted",
 };
@@ -46,6 +48,7 @@ const pipelineBoardStages: PipelineStage[] = [
   "Lead/Inquiry",
   "Renewal",
   "Follow Up",
+  "Changes",
   "Completed",
 ];
 
@@ -166,12 +169,6 @@ const PipelineView = () => {
 
     const fromStage = ticket.stage;
     if (fromStage === newStage) return;
-
-    const transitionError = getStageTransitionError(fromStage, newStage);
-    if (transitionError) {
-      toast.error(transitionError);
-      return;
-    }
 
     setPendingMove({ ticketId, fromStage, toStage: newStage });
     setIsMoveConfirmOpen(true);
