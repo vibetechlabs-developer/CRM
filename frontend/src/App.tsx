@@ -80,6 +80,11 @@ function ProtectedRoutes() {
             {(user?.role === "ADMIN" || user?.role === "MANAGER") && <Route path="/user-control" element={<UserControl />} />}
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<MyProfile />} />
+            <Route path="/crm/forms/new-business" element={<NewBusinessForm />} />
+            <Route path="/crm/forms/renewal" element={<RenewalRequestForm />} />
+            <Route path="/crm/forms/changes" element={<PolicyChangeForm />} />
+            <Route path="/crm/forms/cancellation" element={<CancellationForm />} />
+            <Route path="/crm/forms/customer-issue" element={<CustomerIssueForm />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>

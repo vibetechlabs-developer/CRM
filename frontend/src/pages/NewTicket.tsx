@@ -14,7 +14,7 @@ const requestTypes: {
 }[] = [
   {
     type: "New Policy" as RequestType,
-    path: "/forms/new-business",
+    path: "/crm/forms/new-business",
     description: "Create a new policy / quotation ticket using the detailed insurance form",
     icon: FileText,
     color: "text-primary",
@@ -22,7 +22,7 @@ const requestTypes: {
   },
   {
     type: "Renewal" as RequestType,
-    path: "/forms/renewal",
+    path: "/crm/forms/renewal",
     description: "Create a renewal ticket for an existing policy",
     icon: RefreshCw,
     color: "text-accent",
@@ -30,7 +30,7 @@ const requestTypes: {
   },
   {
     type: "Adjustment" as RequestType,
-    path: "/forms/changes",
+    path: "/crm/forms/changes",
     description: "Create an adjustment / change request ticket",
     icon: SlidersHorizontal,
     color: "text-purple-500",
@@ -38,7 +38,7 @@ const requestTypes: {
   },
   {
     type: "Cancellation" as RequestType,
-    path: "/forms/cancellation",
+    path: "/crm/forms/cancellation",
     description: "Create a cancellation request ticket",
     icon: XCircle,
     color: "text-destructive",
@@ -46,7 +46,7 @@ const requestTypes: {
   },
   {
     type: "Customer Issue" as RequestType,
-    path: "/forms/customer-issue",
+    path: "/crm/forms/customer-issue",
     description: "Log a customer service issue or complaint",
     icon: MessageCircleWarning,
     color: "text-amber-600",

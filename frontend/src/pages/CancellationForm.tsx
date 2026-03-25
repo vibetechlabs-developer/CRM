@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import api from "@/lib/api";
 import { handleApiError } from "@/lib/error-utils";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
 
 import { cancellationSchema, type CancellationFormValues } from "@/schemas/cancellationSchema";
 import { ContactSection } from "@/components/forms/ContactSection";
@@ -20,6 +21,7 @@ const CancellationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [ticketNo, setTicketNo] = useState("");
+  const navigate = useNavigate();
 
   const form = useForm<CancellationFormValues>({
     resolver: zodResolver(cancellationSchema),
@@ -69,6 +71,11 @@ const CancellationForm = () => {
               <p className="text-sm text-muted-foreground mb-1">Reference Number:</p>
               <p className="font-mono font-bold text-lg">{ticketNo}</p>
             </div>
+            <div className="flex justify-center pt-2">
+              <Button variant="outline" onClick={() => navigate("/tickets")} className="gap-2">
+                <ArrowLeft className="h-4 w-4" /> Back to Tickets
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -78,6 +85,11 @@ const CancellationForm = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-end mb-4">
+          <Button variant="ghost" type="button" onClick={() => navigate("/tickets")} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Tickets
+          </Button>
+        </div>
         <Card className="border shadow-lg">
           <CardHeader className="bg-primary text-primary-foreground rounded-t-lg">
             <CardTitle className="text-3xl">Cancellation Request Form</CardTitle>

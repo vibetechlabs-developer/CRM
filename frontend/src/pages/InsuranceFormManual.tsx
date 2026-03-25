@@ -94,7 +94,12 @@ const InsuranceFormManual = () => {
             Enter client insurance information manually
           </p>
         </div>
-        <Button variant="ghost" type="button" onClick={() => navigate(-1)} className="gap-2">
+        <Button
+          variant="ghost"
+          type="button"
+          onClick={() => navigate("/tickets")}
+          className="gap-2"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
       </div>
@@ -173,7 +178,7 @@ const InsuranceFormManual = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate(-1)}
+                    onClick={() => navigate("/tickets")}
                   disabled={isSubmitting}
                 >
                   Cancel
