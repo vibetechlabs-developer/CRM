@@ -106,7 +106,11 @@ export function TicketGrid({
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Stage</span>
-                <Select value={String(ticket.stage)} onValueChange={(v) => onStageChange(ticket.id, v as PipelineStage)}>
+                <Select
+                  value={String(ticket.stage)}
+                  onValueChange={(v) => onStageChange(ticket.id, v as PipelineStage)}
+                  disabled={String(ticket.stage) === "Completed"}
+                >
                   <SelectTrigger className={`h-6 w-auto border-0 p-0 hover:bg-transparent ${stageStyles[String(ticket.stage)]?.split(" ")[1]}`}>
                     <SelectValue />
                   </SelectTrigger>

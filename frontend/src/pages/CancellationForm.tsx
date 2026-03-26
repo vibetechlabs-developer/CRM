@@ -22,6 +22,7 @@ const CancellationForm = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [ticketNo, setTicketNo] = useState("");
   const navigate = useNavigate();
+  const isCrmPage = window.location.pathname.startsWith("/crm/");
 
   const form = useForm<CancellationFormValues>({
     resolver: zodResolver(cancellationSchema),
@@ -77,11 +78,13 @@ const CancellationForm = () => {
               <p className="text-sm text-muted-foreground mb-1">Reference Number:</p>
               <p className="font-mono font-bold text-lg">{ticketNo}</p>
             </div>
-            <div className="flex justify-center pt-2">
-              <Button variant="outline" onClick={() => navigate("/tickets")} className="gap-2">
-                <ArrowLeft className="h-4 w-4" /> Back to Tickets
-              </Button>
-            </div>
+            {isCrmPage && (
+              <div className="flex justify-center pt-2">
+                <Button variant="outline" onClick={() => navigate("/tickets")} className="gap-2">
+                  <ArrowLeft className="h-4 w-4" /> Back to Tickets
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -91,11 +94,13 @@ const CancellationForm = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-end mb-4">
-          <Button variant="ghost" type="button" onClick={() => navigate("/tickets")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to Tickets
-          </Button>
-        </div>
+        {isCrmPage && (
+          <div className="flex items-center justify-end mb-4">
+            <Button variant="ghost" type="button" onClick={() => navigate("/tickets")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to Tickets
+            </Button>
+          </div>
+        )}
         <Card className="border shadow-lg">
           <CardHeader className="bg-primary text-primary-foreground rounded-t-lg">
             <CardTitle className="text-3xl">Cancellation Request Form</CardTitle>

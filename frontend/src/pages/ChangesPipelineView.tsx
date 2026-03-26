@@ -169,6 +169,7 @@ const ChangesPipelineView = () => {
     const ticket = localTickets.find((t) => t.id === ticketId);
     if (!ticket) return;
     const fromStage = ticket.stage;
+    if (fromStage === "Completed") return;
     if (fromStage === newStage) return;
 
     setPendingMove({ ticketId, fromStage, toStage: newStage });

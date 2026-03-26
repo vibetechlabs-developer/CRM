@@ -122,7 +122,11 @@ export function TicketList({
                   </div>
                 </td>
                 <td className="p-4 hidden md:table-cell">
-                  <Select value={String(ticket.stage)} onValueChange={(v) => onStageChange(ticket.id, v as PipelineStage)}>
+                  <Select
+                    value={String(ticket.stage)}
+                    onValueChange={(v) => onStageChange(ticket.id, v as PipelineStage)}
+                    disabled={String(ticket.stage) === "Completed"}
+                  >
                     <SelectTrigger className={`h-8 w-[150px] text-xs font-medium rounded-full border ${stageStyles[String(ticket.stage)]}`}>
                       <SelectValue />
                     </SelectTrigger>

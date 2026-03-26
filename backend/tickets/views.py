@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters
 
 from users.models import User
@@ -45,6 +46,12 @@ class TicketViewSet(ModelViewSet):
         return [IsAuthenticated()]
 
     def get_queryset(self):
+        # Auto-discard overdue renewals whenever tickets are queried.
+        Ticket.objects.filter(
+            ticket_type="RENEWAL",
+            renewal_date__lt=timezone.localdate(),
+        ).exclude(status="DISCARDED").update(status="DISCARDED")
+
         user = self.request.user
         qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
         if getattr(user, "role", None) in ("ADMIN", "MANAGER"):
@@ -206,6 +213,9 @@ class TicketViewSet(ModelViewSet):
                 {"error": "Status is required"},
                 status=400
             )
+
+        if ticket.status == "COMPLETED" and new_status != "COMPLETED":
+            return Response({"error": "Completed ticket cannot be moved to another stage."}, status=400)
 
         ticket.status = new_status
         ticket.save()  # serializer.update will add user-attributed activity when patched via PATCH; here signal won't, so log explicitly

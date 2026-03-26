@@ -30,6 +30,7 @@ const RenewalRequestForm = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [ticketNo, setTicketNo] = useState("");
   const navigate = useNavigate();
+  const isCrmPage = window.location.pathname.startsWith("/crm/");
 
   const form = useForm<RenewalFormValues>({
     resolver: zodResolver(renewalSchema),
@@ -46,6 +47,7 @@ const RenewalRequestForm = () => {
       state: "",
       postal_code: "",
       services_you_are_interested_in: [],
+      renewal_date: "",
       last_year_price: "",
       renewal_price: "",
       premium_looking_current_year: "",
@@ -71,6 +73,7 @@ const RenewalRequestForm = () => {
         insurance_type: "Renewal",
         company_name: data.company_name,
         services_you_are_interested_in: data.services_you_are_interested_in.join(", "),
+        renewal_date: data.renewal_date,
         last_year_price: data.last_year_price,
         renewal_price: data.renewal_price,
         premium_looking_current_year: data.premium_looking_current_year,
@@ -107,11 +110,13 @@ const RenewalRequestForm = () => {
               <p className="text-sm text-muted-foreground mb-1">Reference Number:</p>
               <p className="font-mono font-bold text-lg">{ticketNo}</p>
             </div>
-            <div className="flex justify-center pt-2">
-              <Button variant="outline" onClick={() => navigate("/tickets")} className="gap-2">
-                <ArrowLeft className="h-4 w-4" /> Back to Tickets
-              </Button>
-            </div>
+            {isCrmPage && (
+              <div className="flex justify-center pt-2">
+                <Button variant="outline" onClick={() => navigate("/tickets")} className="gap-2">
+                  <ArrowLeft className="h-4 w-4" /> Back to Tickets
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -121,11 +126,13 @@ const RenewalRequestForm = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-end mb-4">
-          <Button variant="ghost" type="button" onClick={() => navigate("/tickets")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to Tickets
-          </Button>
-        </div>
+        {isCrmPage && (
+          <div className="flex items-center justify-end mb-4">
+            <Button variant="ghost" type="button" onClick={() => navigate("/tickets")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to Tickets
+            </Button>
+          </div>
+        )}
         <Card className="border shadow-lg">
           <CardHeader className="bg-primary text-primary-foreground rounded-t-lg">
             <CardTitle className="text-3xl">Insurance Renewal Form</CardTitle>
@@ -145,7 +152,7 @@ const RenewalRequestForm = () => {
                     name="company_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Company Name <span className="text-destructive">*</span></FormLabel>
+                        <FormLabel>Company Name</FormLabel>
                         <FormControl>
                           <Input placeholder="Company Name" {...field} />
                         </FormControl>
@@ -205,6 +212,19 @@ const RenewalRequestForm = () => {
 
                 {/* Pricing */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="renewal_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Renewal Date <span className="text-destructive">*</span></FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="last_year_price"

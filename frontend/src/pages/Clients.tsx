@@ -465,7 +465,6 @@ const Clients = () => {
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Client</th>
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden md:table-cell">Contact</th>
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden lg:table-cell">Address</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Policies</th>
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden md:table-cell">Added</th>
                 <th className="text-right p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Actions</th>
               </tr>
@@ -491,9 +490,6 @@ const Clients = () => {
                     </td>
                     <td className="p-4 hidden lg:table-cell">
                       <Skeleton className="h-3 w-48" />
-                    </td>
-                    <td className="p-4">
-                      <Skeleton className="h-6 w-20 rounded-full" />
                     </td>
                     <td className="p-4 hidden md:table-cell">
                       <Skeleton className="h-4 w-24" />
@@ -539,11 +535,6 @@ const Clients = () => {
                       <span className="truncate">{client.address || "—"}</span>
                     </div>
                   </td>
-                  <td className="p-4">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${client.policies > 0 ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground"}`}>
-                      {client.policies} {client.policies === 1 ? "Policy" : "Policies"}
-                    </span>
-                  </td>
                   <td className="p-4 text-sm text-muted-foreground hidden md:table-cell">{client.addedDate}</td>
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-1">
@@ -559,7 +550,7 @@ const Clients = () => {
               ))}
               {!isLoading && clients.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-0">
+                  <td colSpan={5} className="p-0">
                     <EmptyState
                       icon={Users}
                       title="No clients found"
@@ -648,14 +639,6 @@ const Clients = () => {
                   <div className="grid grid-cols-4 items-start gap-4">
                     <span className="text-sm font-medium text-right text-muted-foreground mt-1">Address</span>
                     <span className="text-sm col-span-3">{selectedClient.address || "N/A"}</span>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <span className="text-sm font-medium text-right text-muted-foreground">Policies</span>
-                    <span className="text-sm col-span-3">
-                      <span className="inline-flex items-center justify-center bg-secondary px-2.5 py-0.5 rounded-full text-xs font-bold">
-                        {selectedClient.policies}
-                      </span>
-                    </span>
                   </div>
                 </>
               ) : actionType === "edit" && editClient ? (

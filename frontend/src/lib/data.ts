@@ -365,11 +365,10 @@ export const pipelineStages: PipelineStage[] = [
   "Discarded Leads",
 ];
 
-// Ticket stages are editable/correctable by users, including moving between
-// Follow Up -> Renewal, and moving back to earlier stages.
-// Pipeline drag/drop and ticket module both rely on `getStageTransitionError`,
-// so we intentionally allow all transitions.
-const restrictedStatusTransitions: Partial<Record<PipelineStage, PipelineStage[]>> = {};
+// Keep Completed as a terminal state.
+const restrictedStatusTransitions: Partial<Record<PipelineStage, PipelineStage[]>> = {
+  "Completed": ["Lead/Inquiry", "Renewal", "Follow Up", "Changes", "Discarded Leads"],
+};
 
 export const getStageTransitionError = (
   fromStage: PipelineStage | string,

@@ -1,4 +1,4 @@
-import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell, SlidersHorizontal, RefreshCw } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const overviewItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Project Pipeline", url: "/pipeline", icon: GitBranch },
+  { title: "Renewal Pipeline", url: "/renewal-pipeline", icon: RefreshCw },
   { title: "Changes Pipeline", url: "/changes-pipeline", icon: SlidersHorizontal },
 ];
 

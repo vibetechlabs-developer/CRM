@@ -28,6 +28,14 @@ class TicketSerializer(serializers.ModelSerializer):
             return full_name if full_name else obj.assigned_to.username
         return None
 
+    def validate(self, attrs):
+        # Completed should be terminal: do not allow moving back.
+        instance = getattr(self, "instance", None)
+        next_status = attrs.get("status")
+        if instance and instance.status == "COMPLETED" and next_status and next_status != "COMPLETED":
+            raise serializers.ValidationError({"status": "Completed ticket cannot be moved to another stage."})
+        return attrs
+
     def update(self, instance, validated_data):
         """
         Add audit trail with user attribution for important field changes.

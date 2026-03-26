@@ -1,4 +1,5 @@
 from django.db import IntegrityError, models, router, transaction
+from django.utils import timezone
 from clients.models import Client
 from policies.models import Policy
 from users.models import User
@@ -87,6 +88,7 @@ class Ticket(models.Model):
 
 
     follow_up_date = models.DateTimeField(null=True, blank=True)
+    renewal_date = models.DateField(null=True, blank=True)
 
 
 
@@ -106,6 +108,18 @@ class Ticket(models.Model):
                 old_status = Ticket.objects.get(pk=self.pk).status
             except Ticket.DoesNotExist:
                 pass
+
+        # Cancellation tickets are always treated as discarded requests.
+        if self.ticket_type == "CANCELLATION":
+            self.status = "DISCARDED"
+
+        # Keep completed tickets terminal (cannot move away once completed).
+        if not is_new and old_status == "COMPLETED" and self.status != "COMPLETED":
+            self.status = "COMPLETED"
+
+        # Renewal tickets whose renewal date has passed should be discarded.
+        if self.ticket_type == "RENEWAL" and self.renewal_date and self.renewal_date < timezone.localdate():
+            self.status = "DISCARDED"
 
         if not self.ticket_no and is_new:
             prefix = "INS-"

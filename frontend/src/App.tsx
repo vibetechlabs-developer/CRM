@@ -23,6 +23,7 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const PipelineView = lazy(() => import("./pages/PipelineView"));
+const RenewalPipelineView = lazy(() => import("./pages/RenewalPipelineView"));
 const ChangesPipelineView = lazy(() => import("./pages/ChangesPipelineView"));
 const Clients = lazy(() => import("./pages/Clients"));
 const Tickets = lazy(() => import("./pages/Tickets"));
@@ -70,6 +71,7 @@ function ProtectedRoutes() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/pipeline" element={<PipelineView />} />
+            <Route path="/renewal-pipeline" element={<RenewalPipelineView />} />
             <Route path="/changes-pipeline" element={<ChangesPipelineView />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/tickets" element={<Tickets />} />

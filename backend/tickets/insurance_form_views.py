@@ -5,6 +5,7 @@ from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.dateparse import parse_date
 
 from clients.models import Client
 from tickets.models import Ticket
@@ -428,6 +429,11 @@ def submit_typed_form(request):
             initial_status = 'RENEWAL'
         elif ticket_type == 'CHANGES':
             initial_status = 'CHANGES'
+        elif ticket_type == 'CANCELLATION':
+            initial_status = 'DISCARDED'
+
+        renewal_date_raw = _safe_get_text(data, "renewal_date")
+        renewal_date = parse_date(renewal_date_raw) if renewal_date_raw else None
 
         ticket = Ticket.objects.create(
             client=client,
@@ -437,7 +443,8 @@ def submit_typed_form(request):
             insurance_type=insurance_type,
             details=details_dict,
             additional_notes=additional_details,
-            source=source
+            source=source,
+            renewal_date=renewal_date,
         )
 
         return Response({
