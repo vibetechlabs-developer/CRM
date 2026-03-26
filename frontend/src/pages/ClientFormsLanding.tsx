@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning } from "lucide-react";
+import { FileText, RefreshCw, SlidersHorizontal, MessageCircleWarning } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RequestType } from "@/lib/data";
 
@@ -34,14 +34,6 @@ const requestTypes: {
     icon: SlidersHorizontal,
     color: "text-purple-500",
     bg: "bg-purple-500/10 border-purple-500/20",
-  },
-  {
-    type: "Cancellation" as RequestType,
-    path: "/forms/cancellation",
-    description: "Create a cancellation request ticket",
-    icon: XCircle,
-    color: "text-destructive",
-    bg: "bg-destructive/10 border-destructive/20",
   },
   {
     type: "Customer Issue" as RequestType,
