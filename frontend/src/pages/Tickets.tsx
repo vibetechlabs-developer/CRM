@@ -249,6 +249,10 @@ const Tickets = () => {
   const handleStageChange = (ticketId: number, newStage: PipelineStage) => {
     const ticket = formattedTickets.find((t) => t.id === ticketId);
     if (!ticket) return;
+    if (String(ticket.stage) === "Completed" && String(newStage) !== "Completed") {
+      toast.error("Completed ticket cannot be moved to another stage.");
+      return;
+    }
     if (ticket.stage === newStage) return;
 
     setPendingStatusChange({
@@ -261,6 +265,12 @@ const Tickets = () => {
 
   const confirmStatusChange = () => {
     if (!pendingStatusChange) return;
+    if (String(pendingStatusChange.fromStage) === "Completed" && String(pendingStatusChange.toStage) !== "Completed") {
+      toast.error("Completed ticket cannot be moved to another stage.");
+      setIsStatusConfirmOpen(false);
+      setPendingStatusChange(null);
+      return;
+    }
     updateTicketMutation.mutate({
       id: pendingStatusChange.ticketId,
       data: { status: getStatusBackendCode(pendingStatusChange.toStage) },
@@ -455,6 +465,10 @@ const Tickets = () => {
           const isStageChanged = !!ticket && String(ticket.stage) !== String(status);
 
           if (ticket && isStageChanged) {
+            if (String(ticket.stage) === "Completed" && String(status) !== "Completed") {
+              toast.error("Completed ticket cannot be moved to another stage.");
+              return;
+            }
             setPendingStatusChange({
               ticketId: id,
               fromStage: ticket.stage,

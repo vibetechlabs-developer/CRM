@@ -169,7 +169,10 @@ const ChangesPipelineView = () => {
     const ticket = localTickets.find((t) => t.id === ticketId);
     if (!ticket) return;
     const fromStage = ticket.stage;
-    if (fromStage === "Completed") return;
+    if (fromStage === "Completed") {
+      toast.error("Completed ticket cannot be moved to another stage.");
+      return;
+    }
     if (fromStage === newStage) return;
 
     setPendingMove({ ticketId, fromStage, toStage: newStage });

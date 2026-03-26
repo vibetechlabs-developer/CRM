@@ -32,8 +32,13 @@ class TicketSerializer(serializers.ModelSerializer):
         # Completed should be terminal: do not allow moving back.
         instance = getattr(self, "instance", None)
         next_status = attrs.get("status")
+        next_type = attrs.get("ticket_type")
+        if instance:
+            next_type = next_type or instance.ticket_type
         if instance and instance.status == "COMPLETED" and next_status and next_status != "COMPLETED":
             raise serializers.ValidationError({"status": "Completed ticket cannot be moved to another stage."})
+        if next_type == "CANCELLATION" and next_status and next_status != "DISCARDED":
+            raise serializers.ValidationError({"status": "Cancellation ticket must stay in Discarded Leads."})
         return attrs
 
     def update(self, instance, validated_data):

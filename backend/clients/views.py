@@ -26,11 +26,7 @@ class ClientViewSet(ModelViewSet):
     ]
 
     def get_queryset(self):
-        user = self.request.user
         qs = Client.objects.all()
-        if getattr(user, "role", None) not in ("ADMIN", "MANAGER"):
-            # AGENT: only clients that have at least one ticket assigned to this agent
-            qs = qs.filter(tickets__assigned_to=user).distinct()
 
         renewal_days_param = self.request.query_params.get("renewal_days")
         if renewal_days_param:
@@ -43,9 +39,12 @@ class ClientViewSet(ModelViewSet):
                 today = timezone.localdate()
                 end_date_limit = today + timedelta(days=renewal_days)
                 qs = qs.filter(
-                    policies__status="ACTIVE",
-                    policies__end_date__gte=today,
-                    policies__end_date__lte=end_date_limit,
+                    tickets__ticket_type="RENEWAL",
+                    tickets__renewal_date__isnull=False,
+                    tickets__renewal_date__gte=today,
+                    tickets__renewal_date__lte=end_date_limit,
+                ).exclude(
+                    tickets__status__in=["DISCARDED", "COMPLETED"],
                 ).distinct()
 
         return qs

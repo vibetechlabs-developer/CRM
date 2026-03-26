@@ -216,6 +216,8 @@ class TicketViewSet(ModelViewSet):
 
         if ticket.status == "COMPLETED" and new_status != "COMPLETED":
             return Response({"error": "Completed ticket cannot be moved to another stage."}, status=400)
+        if ticket.ticket_type == "CANCELLATION" and new_status != "DISCARDED":
+            return Response({"error": "Cancellation ticket must stay in Discarded Leads."}, status=400)
 
         ticket.status = new_status
         ticket.save()  # serializer.update will add user-attributed activity when patched via PATCH; here signal won't, so log explicitly
