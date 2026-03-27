@@ -3,15 +3,28 @@ import { Ticket } from "@/lib/data";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Clock, Eye } from "lucide-react";
+import { Clock, Eye, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface PipelineCardProps {
   ticket: Ticket;
+  onDiscard?: (ticketId: string) => void;
+  isDiscarding?: boolean;
 }
 
 const priorityColors: Record<string, string> = {
@@ -29,7 +42,7 @@ const typeColors: Record<string, string> = {
   "Cancellation": "text-destructive border-destructive/30 bg-destructive/5",
 };
 
-export function PipelineCard({ ticket }: PipelineCardProps) {
+export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: PipelineCardProps) {
   const [actionType, setActionType] = useState<"view" | null>(null);
   const [notes, setNotes] = useState(ticket.additionalNotes || ticket.notes || "");
   const queryClient = useQueryClient();
@@ -115,11 +128,43 @@ export function PipelineCard({ ticket }: PipelineCardProps) {
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setActionType("view")}
               className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded"
             >
               <Eye className="h-3.5 w-3.5" />
             </button>
+            {onDiscard && ticket.stage !== "Discarded Leads" && ticket.stage !== "Completed" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="p-1 text-muted-foreground hover:text-destructive hover:bg-secondary rounded"
+                    disabled={isDiscarding}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Discard this lead?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will move ticket #{ticket.ticket_no || ticket.id} to Discarded Leads.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDiscarding}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => onDiscard(ticket.id)}
+                      disabled={isDiscarding}
+                      className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    >
+                      Discard
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
 

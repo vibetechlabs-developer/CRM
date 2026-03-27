@@ -43,11 +43,12 @@ const stageColors: Record<string, string> = {
   "Discarded Leads": "text-muted-foreground border-border bg-muted",
 };
 
-// Stages shown on the visual pipeline board (we exclude Discarded Leads here).
+// Stages shown on the visual pipeline board.
 const pipelineBoardStages: PipelineStage[] = [
   "Lead/Inquiry",
   "Follow Up",
   "Completed",
+  "Discarded Leads",
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,6 +205,24 @@ const PipelineView = () => {
     setPendingMove(null);
   };
 
+  const handleDiscard = (ticketId: string) => {
+    const ticket = localTickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+    if (ticket.stage === "Completed") {
+      toast.error("Completed ticket cannot be moved to another stage.");
+      return;
+    }
+
+    setLocalTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, stage: "Discarded Leads" } : t))
+    );
+
+    updateTicketMutation.mutate({
+      id: ticketId,
+      status: "DISCARDED",
+    });
+  };
+
   const currentYear = new Date().getFullYear();
   const allYears = Array.from({ length: (currentYear + 1) - 2015 }, (_, i) => String(currentYear + 1 - i));
 
@@ -302,7 +321,7 @@ const PipelineView = () => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-start pb-4 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-start pb-4 w-full">
           {isLoading ? (
             <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground gap-2">
               <Spinner size="md" />
@@ -329,7 +348,12 @@ const PipelineView = () => {
 
                 <PipelineColumn id={stage}>
                   {stageTickets.map((ticket) => (
-                    <PipelineCard key={"item-" + ticket.id} ticket={ticket} />
+                    <PipelineCard
+                      key={"item-" + ticket.id}
+                      ticket={ticket}
+                      onDiscard={handleDiscard}
+                      isDiscarding={updateTicketMutation.isPending}
+                    />
                   ))}
                   {stageTickets.length === 0 && (
                     <div className="h-32 flex items-center justify-center border-2 border-dashed rounded-lg border-border/50 text-muted-foreground text-sm font-medium">
