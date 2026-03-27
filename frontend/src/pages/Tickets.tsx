@@ -228,8 +228,8 @@ const Tickets = () => {
     queryKey: ["users"],
     enabled: user?.role === "ADMIN",
     queryFn: async () => {
-      const res = await api.get("/api/users/");
-      return (Array.isArray(res.data) ? res.data : (res.data?.results || [])) as BackendUser[];
+      const allUsers = await fetchAllPages("/api/users/");
+      return (Array.isArray(allUsers) ? allUsers : []) as BackendUser[];
     },
   });
 
