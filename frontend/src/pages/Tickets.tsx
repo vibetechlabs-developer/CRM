@@ -233,7 +233,9 @@ const Tickets = () => {
     },
   });
 
-  const agents = usersData.filter((u) => u.role === "AGENT");
+  const agents = usersData.filter((u) =>
+    ["AGENT", "MANAGER", "ADMIN"].includes(String(u.role || "").toUpperCase())
+  );
 
   // Reset page when filters change
   useEffect(() => {
