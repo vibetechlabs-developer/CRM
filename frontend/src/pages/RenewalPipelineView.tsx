@@ -3,7 +3,7 @@ import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBacke
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw, CheckCircle, Clock } from "lucide-react";
+import { Plus, RefreshCw, CheckCircle, Clock, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,18 +26,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
-const renewalPipelineStages: PipelineStage[] = ["Renewal", "Follow Up", "Completed"];
+const renewalPipelineStages: PipelineStage[] = ["Renewal", "Follow Up", "Completed", "Discarded Leads"];
 
 const stageIcons: Record<string, React.ReactNode> = {
   "Renewal": <RefreshCw className="h-4 w-4" />,
   "Follow Up": <Clock className="h-4 w-4" />,
   "Completed": <CheckCircle className="h-4 w-4" />,
+  "Discarded Leads": <Trash2 className="h-4 w-4" />,
 };
 
 const stageColors: Record<string, string> = {
   "Renewal": "text-warning border-warning/20 bg-warning/10",
   "Follow Up": "text-info border-info/20 bg-info/10",
   "Completed": "text-success border-success/20 bg-success/10",
+  "Discarded Leads": "text-muted-foreground border-border bg-muted",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,13 +50,15 @@ const formatTicket = (t: any): Ticket => {
     t.assigned_to_name ||
     t.assigned_to_username ||
     (t.assigned_to ? `User ${t.assigned_to}` : null);
-  const displayStatus = getStatusDisplay(t.status);
+  const displayStatus = getStatusDisplay(t.status) as PipelineStage | string;
   const stageForRenewalPipeline: PipelineStage =
     displayStatus === "Completed"
       ? "Completed"
       : displayStatus === "Follow Up"
         ? "Follow Up"
-        : "Renewal";
+        : displayStatus === "Discarded Leads"
+          ? "Discarded Leads"
+          : "Renewal";
 
   return {
     id: String(t.id),
@@ -159,6 +163,24 @@ const RenewalPipelineView = () => {
     setIsMoveConfirmOpen(true);
   };
 
+  const handleDiscard = (ticketId: string) => {
+    const ticket = localTickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+    if (ticket.stage === "Completed") {
+      toast.error("Completed ticket cannot be moved to another stage.");
+      return;
+    }
+
+    setLocalTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, stage: "Discarded Leads" } : t))
+    );
+
+    updateTicketMutation.mutate({
+      id: ticketId,
+      status: "DISCARDED",
+    });
+  };
+
   const confirmMove = () => {
     if (!pendingMove) return;
     const { ticketId, toStage } = pendingMove;
@@ -250,7 +272,7 @@ const RenewalPipelineView = () => {
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start pb-4 w-full max-w-6xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-start pb-4 w-full">
           {isLoading ? (
             <div className="col-span-full h-32 flex items-center justify-center text-muted-foreground gap-2">
               <Spinner size="md" />
@@ -272,7 +294,14 @@ const RenewalPipelineView = () => {
                   <span className="text-xs bg-background/50 backdrop-blur-sm px-2.5 py-0.5 rounded-full font-semibold border shadow-sm">{stageTickets.length}</span>
                 </div>
                 <PipelineColumn id={stage}>
-                  {stageTickets.map((ticket) => <PipelineCard key={"item-" + ticket.id} ticket={ticket} />)}
+                  {stageTickets.map((ticket) => (
+                    <PipelineCard
+                      key={"item-" + ticket.id}
+                      ticket={ticket}
+                      onDiscard={handleDiscard}
+                      isDiscarding={updateTicketMutation.isPending}
+                    />
+                  ))}
                   {stageTickets.length === 0 && (
                     <div className="h-32 flex items-center justify-center border-2 border-dashed rounded-lg border-border/50 text-muted-foreground text-sm font-medium">
                       No tickets in this stage
