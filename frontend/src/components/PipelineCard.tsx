@@ -42,6 +42,36 @@ const typeColors: Record<string, string> = {
   "Cancellation": "text-destructive border-destructive/30 bg-destructive/5",
 };
 
+function parseDetails(details: any) {
+  const rows: { key: string; value: string }[] = [];
+  if (!details) return rows;
+
+  if (typeof details === "string") {
+    const lines = details.split("\n");
+    lines.forEach((line) => {
+      if (!line.trim()) return;
+      const separatorIdx = line.indexOf(":");
+      if (separatorIdx !== -1) {
+        const key = line.slice(0, separatorIdx).trim();
+        const value = line.slice(separatorIdx + 1).trim();
+        const formattedKey = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        rows.push({ key: formattedKey, value });
+      } else {
+        rows.push({ key: "", value: line.trim() });
+      }
+    });
+    return rows;
+  }
+
+  if (typeof details === "object") {
+    Object.entries(details).forEach(([key, value]) => {
+      rows.push({ key, value: String(value) });
+    });
+  }
+
+  return rows;
+}
+
 export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: PipelineCardProps) {
   const [actionType, setActionType] = useState<"view" | null>(null);
   const [notes, setNotes] = useState(ticket.additionalNotes || ticket.notes || "");
@@ -217,36 +247,100 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
 
       {/* Action Dialog */}
       <Dialog open={!!actionType} onOpenChange={() => setActionType(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Ticket Details</DialogTitle>
             <DialogDescription>
               Viewing pipeline details for the ticket.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <span className="text-sm font-medium text-right text-muted-foreground">Client</span>
-              <span className="text-sm col-span-3 font-semibold">{ticket.clientName}</span>
+          <div className="py-4">
+            <div className="border rounded-md overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <tbody className="divide-y divide-border">
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Client Name</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.clientName}</td>
+                  </tr>
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Ticket No</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap font-mono text-primary">
+                      {ticket.ticket_no || ticket.id}
+                    </td>
+                  </tr>
+                  {ticket.clientOccupation && (
+                    <tr className="bg-card">
+                      <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Occupation</th>
+                      <td className="px-3 py-2 whitespace-pre-wrap">{ticket.clientOccupation}</td>
+                    </tr>
+                  )}
+                  {ticket.clientEmail && (
+                    <tr className="bg-card">
+                      <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Email</th>
+                      <td className="px-3 py-2 whitespace-pre-wrap break-all">{ticket.clientEmail}</td>
+                    </tr>
+                  )}
+                  {ticket.clientPhone && (
+                    <tr className="bg-card">
+                      <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Phone</th>
+                      <td className="px-3 py-2 whitespace-pre-wrap">{ticket.clientPhone}</td>
+                    </tr>
+                  )}
+                  {ticket.clientAddress && (
+                    <tr className="bg-card">
+                      <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Address</th>
+                      <td className="px-3 py-2 whitespace-pre-wrap break-words">{ticket.clientAddress}</td>
+                    </tr>
+                  )}
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Type</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap font-medium">{ticket.type}</td>
+                  </tr>
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Insurance</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.insuranceType || "-"}</td>
+                  </tr>
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Stage</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.stage}</td>
+                  </tr>
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Priority</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.priority}</td>
+                  </tr>
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Assigned To</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.assignedTo || "Unassigned"}</td>
+                  </tr>
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Created Date</th>
+                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.createdDate}</td>
+                  </tr>
+                  {parseDetails(ticket.details).map((row, idx) => (
+                    <tr key={`detail-${ticket.id}-${idx}`} className="bg-card">
+                      {row.key ? (
+                        <>
+                          <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top break-words">
+                            {row.key}
+                          </th>
+                          <td className="px-3 py-2 whitespace-pre-wrap break-words">{row.value}</td>
+                        </>
+                      ) : (
+                        <td colSpan={2} className="px-3 py-2 whitespace-pre-wrap break-words text-muted-foreground">
+                          {row.value}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {(ticket.additionalNotes || ticket.notes) && (
+                    <tr className="bg-card">
+                      <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Notes</th>
+                      <td className="px-3 py-2 whitespace-pre-wrap">{ticket.additionalNotes || ticket.notes}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <span className="text-sm font-medium text-right text-muted-foreground">Ticket ID</span>
-              <span className="text-sm col-span-3 font-mono text-primary">{ticket.id}</span>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <span className="text-sm font-medium text-right text-muted-foreground">Type</span>
-              <span className="text-sm col-span-3">
-                <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
-                  {ticket.type}
-                </span>
-              </span>
-            </div>
-            {(ticket.additionalNotes || ticket.notes) && (
-              <div className="grid grid-cols-4 items-start gap-4">
-                <span className="text-sm font-medium text-right text-muted-foreground">Notes</span>
-                <span className="text-sm col-span-3 whitespace-pre-wrap">{ticket.additionalNotes || ticket.notes}</span>
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setActionType(null); setNotes(ticket.additionalNotes || ticket.notes || ""); }}>Close</Button>

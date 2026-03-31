@@ -35,6 +35,9 @@ export interface Ticket {
   ticket_no?: string;
   clientName: string;
   clientEmail: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  clientOccupation?: string;
   type: RequestType;
   insuranceType: InsuranceType;
   stage: PipelineStage;
@@ -42,6 +45,7 @@ export interface Ticket {
   assignedTo: string;
   createdDate: string;
   createdAtRaw?: string; // Add raw ISO timestamp for filtering
+  details?: any;
   notes?: string;
   additionalNotes?: string;
 }

@@ -70,6 +70,9 @@ const formatTicket = (t: any): Ticket => {
         id: String(t.id),
         ticket_no: t.ticket_no,
         clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
+        clientPhone: t.client_phone || "",
+        clientAddress: t.client_address || "",
+        clientOccupation: t.client_occupation || "",
         type: typeDisplay,
         // This view has 3 lanes: Changes, Follow Up, Completed.
         stage: stageForChangesPipeline,
@@ -79,6 +82,7 @@ const formatTicket = (t: any): Ticket => {
         insuranceType: t.insurance_type || t.insuranceType || "",
         clientEmail: t.client_email || t.clientEmail || "",
         createdAtRaw: t.created_at,
+        details: t.details,
         additionalNotes: additionalNotes || "",
     } as any;
 };

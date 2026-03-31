@@ -68,6 +68,9 @@ const formatTicket = (t: any): Ticket => {
         id: String(t.id),
         ticket_no: t.ticket_no,
         clientName: computedName || (t.client ? `Client ${t.client}` : "Unknown Client"),
+        clientPhone: t.client_phone || "",
+        clientAddress: t.client_address || "",
+        clientOccupation: t.client_occupation || "",
         type: typeDisplay,
         stage: stageForProjectPipeline,
         priority: getPriorityDisplay(t.priority),
@@ -76,6 +79,7 @@ const formatTicket = (t: any): Ticket => {
         insuranceType: t.insurance_type || t.insuranceType || "",
         clientEmail: t.client_email || t.clientEmail || "",
         createdAtRaw: t.created_at,
+        details: t.details,
         additionalNotes: t.additional_notes || "",
         // Note: For typing to work flawlessly we map `id` to string in UI
     } as any;
