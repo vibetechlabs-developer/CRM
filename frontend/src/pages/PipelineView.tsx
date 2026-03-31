@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
 
 const stageIcons: Record<string, React.ReactNode> = {
   "Lead/Inquiry": <Flag className="h-4 w-4" />,
@@ -83,6 +84,7 @@ const formatTicket = (t: any): Ticket => {
 const PipelineView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const now = new Date();
@@ -174,7 +176,9 @@ const PipelineView = () => {
     if (!ticket) return;
 
     const fromStage = ticket.stage;
-    if (fromStage === "Completed") {
+    const role = String(user?.role || "").trim().toUpperCase();
+    const canMoveFromCompleted = role === "ADMIN" || role === "MANAGER";
+    if (fromStage === "Completed" && !canMoveFromCompleted) {
       toast.error("Completed ticket cannot be moved to another stage.");
       return;
     }
@@ -208,7 +212,9 @@ const PipelineView = () => {
   const handleDiscard = (ticketId: string) => {
     const ticket = localTickets.find((t) => t.id === ticketId);
     if (!ticket) return;
-    if (ticket.stage === "Completed") {
+    const role = String(user?.role || "").trim().toUpperCase();
+    const canMoveFromCompleted = role === "ADMIN" || role === "MANAGER";
+    if (ticket.stage === "Completed" && !canMoveFromCompleted) {
       toast.error("Completed ticket cannot be moved to another stage.");
       return;
     }

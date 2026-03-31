@@ -207,6 +207,12 @@ class TicketViewSet(ModelViewSet):
 
         ticket = self.get_object()
         new_status = request.data.get('status')
+        user_role = str(getattr(request.user, "role", "") or "").strip().upper()
+        is_admin = (
+            user_role in {"ADMIN", "MANAGER"}
+            or getattr(request.user, "is_staff", False)
+            or getattr(request.user, "is_superuser", False)
+        )
 
         if not new_status:
             return Response(
@@ -214,12 +220,13 @@ class TicketViewSet(ModelViewSet):
                 status=400
             )
 
-        if ticket.status == "COMPLETED" and new_status != "COMPLETED":
+        if ticket.status == "COMPLETED" and new_status != "COMPLETED" and not is_admin:
             return Response({"error": "Completed ticket cannot be moved to another stage."}, status=400)
         if ticket.ticket_type == "CANCELLATION" and new_status != "DISCARDED":
             return Response({"error": "Cancellation ticket must stay in Discarded Leads."}, status=400)
 
         ticket.status = new_status
+        ticket._allow_completed_reopen = is_admin
         ticket.save()  # serializer.update will add user-attributed activity when patched via PATCH; here signal won't, so log explicitly
         TicketActivity.objects.create(ticket=ticket, user=request.user, message=f"Status changed to {new_status}.")
 

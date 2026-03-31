@@ -96,6 +96,10 @@ class Ticket(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Request-scoped escape hatch used by APIs/serializers to allow controlled
+    # reopen from COMPLETED. It is not a DB field.
+    _allow_completed_reopen = False
+
     def save(self, *args, **kwargs):
         """
         Generate `ticket_no` safely under concurrency.
@@ -113,8 +117,10 @@ class Ticket(models.Model):
         if self.ticket_type == "CANCELLATION":
             self.status = "DISCARDED"
 
-        # Keep completed tickets terminal (cannot move away once completed).
-        if not is_new and old_status == "COMPLETED" and self.status != "COMPLETED":
+        # Keep completed tickets terminal unless caller explicitly allows reopen
+        # (used only for ADMIN-driven updates).
+        allow_completed_reopen = bool(getattr(self, "_allow_completed_reopen", False))
+        if not is_new and old_status == "COMPLETED" and self.status != "COMPLETED" and not allow_completed_reopen:
             self.status = "COMPLETED"
 
         # Renewal tickets whose renewal date has passed should be discarded.

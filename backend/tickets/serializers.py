@@ -31,11 +31,23 @@ class TicketSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         # Completed should be terminal: do not allow moving back.
         instance = getattr(self, "instance", None)
+        request = self.context.get("request")
+        actor = getattr(request, "user", None) if request else None
+        actor_role = str(getattr(actor, "role", "") or "").strip().upper()
+        is_admin = bool(
+            actor
+            and getattr(actor, "is_authenticated", False)
+            and (
+                actor_role in {"ADMIN", "MANAGER"}
+                or getattr(actor, "is_staff", False)
+                or getattr(actor, "is_superuser", False)
+            )
+        )
         next_status = attrs.get("status")
         next_type = attrs.get("ticket_type")
         if instance:
             next_type = next_type or instance.ticket_type
-        if instance and instance.status == "COMPLETED" and next_status and next_status != "COMPLETED":
+        if instance and instance.status == "COMPLETED" and next_status and next_status != "COMPLETED" and not is_admin:
             raise serializers.ValidationError({"status": "Completed ticket cannot be moved to another stage."})
         if next_type == "CANCELLATION" and next_status and next_status != "DISCARDED":
             raise serializers.ValidationError({"status": "Cancellation ticket must stay in Discarded Leads."})
@@ -53,6 +65,17 @@ class TicketSerializer(serializers.ModelSerializer):
         old_priority = instance.priority
         old_assigned_to_id = instance.assigned_to_id
 
+        # Allow ADMIN to move ticket out of COMPLETED when updating via serializer.
+        actor_role = str(getattr(actor, "role", "") or "").strip().upper()
+        instance._allow_completed_reopen = bool(
+            actor
+            and getattr(actor, "is_authenticated", False)
+            and (
+                actor_role in {"ADMIN", "MANAGER"}
+                or getattr(actor, "is_staff", False)
+                or getattr(actor, "is_superuser", False)
+            )
+        )
         instance = super().update(instance, validated_data)
 
         # Write activities (and notifications for ADMINs) only when we have an authenticated actor
