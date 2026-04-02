@@ -80,6 +80,9 @@ INSTALLED_APPS = [
     'users',
     'whatsapp',
     'rest_framework',
+    # Needed so Django can discover `django_filters`' packaged templates
+    # (e.g. `django_filters/rest_framework/form.html` used by DRF's browsable API).
+    'django_filters',
     'rest_framework_simplejwt',
     'corsheaders',
 ]
