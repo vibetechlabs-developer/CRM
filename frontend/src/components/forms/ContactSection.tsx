@@ -5,9 +5,17 @@ import { Input } from "@/components/ui/input";
 
 interface ContactSectionProps {
   control: Control<any>;
+  occupationFieldName?: string;
+  occupationLabel?: string;
+  occupationPlaceholder?: string;
 }
 
-export function ContactSection({ control }: ContactSectionProps) {
+export function ContactSection({
+  control,
+  occupationFieldName = "occupation",
+  occupationLabel = "Occupation",
+  occupationPlaceholder = "Client occupation",
+}: ContactSectionProps) {
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, "");
     if (cleaned.length <= 3) return cleaned;
@@ -48,12 +56,12 @@ export function ContactSection({ control }: ContactSectionProps) {
           />
           <FormField
             control={control}
-            name="occupation"
+            name={occupationFieldName}
             render={({ field }) => (
               <FormItem className="md:col-span-2">
-                <FormLabel>Occupation</FormLabel>
+                <FormLabel>{occupationLabel}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Client occupation" {...field} />
+                  <Input placeholder={occupationPlaceholder} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

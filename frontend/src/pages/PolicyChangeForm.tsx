@@ -49,7 +49,7 @@ const PolicyChangeForm = () => {
     defaultValues: {
       first_name: "",
       last_name: "",
-      occupation: "",
+      policy_number: "",
       email: "",
       phone: "",
       what_changes: [],
@@ -121,7 +121,7 @@ const PolicyChangeForm = () => {
       const payload = {
         first_name: data.first_name,
         last_name: data.last_name,
-        occupation: data.occupation,
+        policy_number: data.policy_number,
         email: data.email,
         phone: data.phone,
         
@@ -221,7 +221,12 @@ const PolicyChangeForm = () => {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 
-                <ContactSection control={form.control} />
+                <ContactSection
+                  control={form.control}
+                  occupationFieldName="policy_number"
+                  occupationLabel="Policy Number"
+                  occupationPlaceholder="Enter policy number"
+                />
 
                 {/* What changes (checkbox list) */}
                 <div className="space-y-2">

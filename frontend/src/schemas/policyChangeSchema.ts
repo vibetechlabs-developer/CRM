@@ -3,7 +3,7 @@ import { z } from "zod";
 export const policyChangeSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
-  occupation: z.string().optional(),
+  policy_number: z.string().optional(),
   phone: z.string().min(10, "Phone number is required"),
   email: z.string().min(1, "Email is required").email("Invalid email address"),
   
