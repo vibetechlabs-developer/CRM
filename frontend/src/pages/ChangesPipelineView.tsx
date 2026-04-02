@@ -6,13 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Plus, SlidersHorizontal, CheckCircle, Clock, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { fetchAllPages } from "@/lib/api";
 import { normalizeListResponse } from "@/lib/normalize";
-import { CalendarIcon } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertDialog,
@@ -93,10 +89,6 @@ const ChangesPipelineView = () => {
   const { user } = useAuth();
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
-  const now = new Date();
-  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
-  const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isMoveConfirmOpen, setIsMoveConfirmOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ ticketId: string; fromStage: PipelineStage; toStage: PipelineStage } | null>(null);
 
@@ -232,53 +224,8 @@ const ChangesPipelineView = () => {
     setPendingMove(null);
   };
 
-  const currentYear = new Date().getFullYear();
-  const allYears = Array.from({ length: (currentYear + 1) - 2015 }, (_, i) => String(currentYear + 1 - i));
-
-  const filteredTickets = localTickets.filter(t => {
-    // Changes requests usually don't have a domain-effective date, so fallback to created_at.
-    // If future forms add one, try common keys first.
-    const getReferenceDate = (ticket: Ticket): Date | null => {
-      const details = (ticket as any).details || {};
-      const tryKeys = [
-        "effective_date",
-        "Effective Date",
-        "Insurance Effective Date",
-        "change_effective_date",
-      ];
-      for (const k of tryKeys) {
-        const raw = details?.[k];
-        if (typeof raw === "string" && raw.trim()) {
-          const d = new Date(raw);
-          if (!isNaN(d.getTime())) return d;
-        }
-      }
-      if (ticket.createdAtRaw) {
-        const d = new Date(ticket.createdAtRaw);
-        if (!isNaN(d.getTime())) return d;
-      }
-      return null;
-    };
-
-    const date = getReferenceDate(t);
-    if (!date) return false;
-    if (selectedDate) {
-      const sd = selectedDate;
-      return (
-        date.getFullYear() === sd.getFullYear() &&
-        date.getMonth() === sd.getMonth() &&
-        date.getDate() === sd.getDate()
-      );
-    }
-    if (selectedYear !== "All" && date.getFullYear() !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== "All") {
-      const monthIndex = parseInt(selectedMonth) - 1;
-      if (date.getMonth() !== monthIndex) return false;
-    }
-    return true;
-  });
+	// Show all change tickets without date-based filtering
+	const filteredTickets = localTickets;
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -287,60 +234,7 @@ const ChangesPipelineView = () => {
           <h1 className="text-2xl font-bold">Changes Pipeline</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Manage and track changes requests</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px] bg-background">
-              <SelectValue placeholder="All Years" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Years</SelectItem>
-              {allYears.map(y => (
-                <SelectItem key={y} value={y}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[130px] bg-background">
-              <SelectValue placeholder="All Months" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Months</SelectItem>
-              {Array.from({ length: 12 }).map((_, idx) => {
-                const date = new Date(2000, idx);
-                const label = date.toLocaleString("default", { month: "long" });
-                const value = String(idx + 1).padStart(2, "0");
-                return <SelectItem key={value} value={String(idx + 1)}>{label}</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="justify-start text-left font-normal min-w-[170px]"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-auto p-0">
-              <div className="p-3">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(d) => setSelectedDate(d)}
-                  initialFocus
-                />
-                <div className="flex justify-between gap-2 mt-3">
-                  <Button variant="secondary" size="sm" onClick={() => setSelectedDate(undefined)}>Clear</Button>
-                  <Button variant="secondary" size="sm" onClick={() => {
-                    setSelectedYear("All");
-                    setSelectedMonth("All");
-                  }}>Ignore YM</Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+		<div className="flex items-center gap-3">
           <Button onClick={() => navigate("/new-ticket")} className="gap-2 shrink-0">
             <Plus className="h-4 w-4" /> New Ticket
           </Button>
