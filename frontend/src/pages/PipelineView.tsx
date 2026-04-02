@@ -59,7 +59,17 @@ const formatTicket = (t: any): Ticket => {
         (t.assigned_to ? `User ${t.assigned_to}` : null);
 
     const typeDisplay = getTypeDisplay(t.ticket_type);
-    const stageForProjectPipeline = getStatusDisplay(t.status) as PipelineStage;
+    const displayStatus = getStatusDisplay(t.status) as PipelineStage | string;
+    // Project pipeline intentionally has 4 lanes; map unsupported statuses
+    // (e.g. Renewal/Changes) to Lead/Inquiry so tickets never disappear.
+    const stageForProjectPipeline: PipelineStage =
+      displayStatus === "Follow Up"
+        ? "Follow Up"
+        : displayStatus === "Completed"
+          ? "Completed"
+          : displayStatus === "Discarded Leads"
+            ? "Discarded Leads"
+            : "Lead/Inquiry";
 
     return {
         id: String(t.id),
