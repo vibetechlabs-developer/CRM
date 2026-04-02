@@ -9,9 +9,6 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, Tou
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { fetchAllPages } from "@/lib/api";
-import { CalendarIcon } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertDialog,
@@ -91,10 +88,6 @@ const PipelineView = () => {
   const { user } = useAuth();
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
-  const now = new Date();
-  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
-  const [selectedMonth, setSelectedMonth] = useState<string>(String(now.getMonth() + 1));
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isMoveConfirmOpen, setIsMoveConfirmOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ ticketId: string; fromStage: PipelineStage; toStage: PipelineStage } | null>(null);
 
@@ -108,14 +101,8 @@ const PipelineView = () => {
   useEffect(() => {
     import("@/lib/normalize").then(({ normalizeListResponse }) => {
       const safeTickets = normalizeListResponse(ticketsData);
-      // Project pipeline should only show new-business/cancellation tickets.
-      // Change/Adjustment/Customer Issue tickets belong to the Changes Pipeline.
-      const projectTypeCodes = new Set(["NEW", "CANCELLATION"]);
-      const filtered = safeTickets.filter((t: any) => {
-        const typeCode = String(t?.ticket_type || "").toUpperCase();
-        return projectTypeCodes.has(typeCode);
-      });
-      setLocalTickets(filtered.map(formatTicket));
+			// Show all tickets in the pipeline (no type-based filtering)
+			setLocalTickets(safeTickets.map(formatTicket));
     });
   }, [ticketsData]);
 
@@ -233,56 +220,8 @@ const PipelineView = () => {
     });
   };
 
-  const currentYear = new Date().getFullYear();
-  const allYears = Array.from({ length: (currentYear + 1) - 2015 }, (_, i) => String(currentYear + 1 - i));
-
-  const filteredTickets = localTickets.filter(t => {
-    // Prefer business-effective date if available, else fallback to created_at
-    const getReferenceDate = (ticket: Ticket): Date | null => {
-      // Try Insurance Effective Date from details for New/Cancellation work
-      // We store `details` as JSON from backend; keys can vary in casing/spaces.
-      const details = (ticket as any).details || {};
-      const tryKeys = [
-        "Insurance Effective Date",
-        "insurance_effective_date",
-        "effective_date",
-        "effectiveDate",
-      ];
-      for (const k of tryKeys) {
-        const raw = details?.[k];
-        if (typeof raw === "string" && raw.trim()) {
-          const d = new Date(raw);
-          if (!isNaN(d.getTime())) return d;
-        }
-      }
-      // Fallback to created_at
-      if (ticket.createdAtRaw) {
-        const d = new Date(ticket.createdAtRaw);
-        if (!isNaN(d.getTime())) return d;
-      }
-      return null;
-    };
-
-    const date = getReferenceDate(t);
-    if (!date) return false;
-    // If exact date selected, match on yyyy-mm-dd
-    if (selectedDate) {
-      const sd = selectedDate;
-      return (
-        date.getFullYear() === sd.getFullYear() &&
-        date.getMonth() === sd.getMonth() &&
-        date.getDate() === sd.getDate()
-      );
-    }
-    if (selectedYear !== "All" && date.getFullYear() !== parseInt(selectedYear)) {
-      return false;
-    }
-    if (selectedMonth !== "All") {
-      const monthIndex = parseInt(selectedMonth) - 1; // 1-12 to 0-11
-      if (date.getMonth() !== monthIndex) return false;
-    }
-    return true;
-  });
+	// Show all tickets without date-based filtering
+	const filteredTickets = localTickets;
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -291,61 +230,7 @@ const PipelineView = () => {
           <h1 className="text-2xl font-bold">Project Pipeline</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Manage and track client requests through different stages</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px] bg-background">
-              <SelectValue placeholder="All Years" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Years</SelectItem>
-              {allYears.map(y => (
-                <SelectItem key={y} value={y}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[130px] bg-background">
-              <SelectValue placeholder="All Months" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Months</SelectItem>
-              {Array.from({ length: 12 }).map((_, idx) => {
-                const date = new Date(2000, idx);
-                const label = date.toLocaleString("default", { month: "long" });
-                const value = String(idx + 1).padStart(2, "0");
-                return <SelectItem key={value} value={String(idx + 1)}>{label}</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="justify-start text-left font-normal min-w-[170px]"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-auto p-0">
-              <div className="p-3">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(d) => setSelectedDate(d)}
-                  initialFocus
-                />
-                <div className="flex justify-between gap-2 mt-3">
-                  <Button variant="secondary" size="sm" onClick={() => setSelectedDate(undefined)}>Clear</Button>
-                  <Button variant="secondary" size="sm" onClick={() => {
-                    // Reset year/month filters to All when picking exact date
-                    setSelectedYear("All");
-                    setSelectedMonth("All");
-                  }}>Ignore YM</Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+				<div className="flex items-center gap-3">
           <Button onClick={() => navigate("/new-ticket")} className="gap-2 shrink-0">
             <Plus className="h-4 w-4" /> New Ticket
           </Button>
