@@ -52,13 +52,9 @@ class TicketViewSet(ModelViewSet):
             renewal_date__lt=timezone.localdate(),
         ).exclude(status="DISCARDED").update(status="DISCARDED")
 
-        user = self.request.user
         qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
-        if getattr(user, "role", None) in ("ADMIN", "MANAGER"):
-            pass
-        # AGENT: only their assigned tickets
-        else:
-            qs = qs.filter(assigned_to=user)
+        # Show all tickets to all authenticated CRM users.
+        # (Urgent visibility fix for pipeline/tickets views.)
 
         # ticket_type is special in this app:
         # - UI uses ADJUSTMENT / CUSTOMER_ISSUE, while backend stores adjustment as CHANGES (+ a marker for customer issue).
