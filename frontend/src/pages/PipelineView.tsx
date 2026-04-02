@@ -44,7 +44,9 @@ const stageColors: Record<string, string> = {
 // Stages shown on the visual pipeline board.
 const pipelineBoardStages: PipelineStage[] = [
   "Lead/Inquiry",
+  "Renewal",
   "Follow Up",
+  "Changes",
   "Completed",
   "Discarded Leads",
 ];
