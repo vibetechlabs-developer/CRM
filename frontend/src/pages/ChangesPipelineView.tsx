@@ -236,8 +236,32 @@ const ChangesPipelineView = () => {
   const allYears = Array.from({ length: (currentYear + 1) - 2015 }, (_, i) => String(currentYear + 1 - i));
 
   const filteredTickets = localTickets.filter(t => {
-    if (!t.createdAtRaw) return false;
-    const date = new Date(t.createdAtRaw);
+    // Changes requests usually don't have a domain-effective date, so fallback to created_at.
+    // If future forms add one, try common keys first.
+    const getReferenceDate = (ticket: Ticket): Date | null => {
+      const details = (ticket as any).details || {};
+      const tryKeys = [
+        "effective_date",
+        "Effective Date",
+        "Insurance Effective Date",
+        "change_effective_date",
+      ];
+      for (const k of tryKeys) {
+        const raw = details?.[k];
+        if (typeof raw === "string" && raw.trim()) {
+          const d = new Date(raw);
+          if (!isNaN(d.getTime())) return d;
+        }
+      }
+      if (ticket.createdAtRaw) {
+        const d = new Date(ticket.createdAtRaw);
+        if (!isNaN(d.getTime())) return d;
+      }
+      return null;
+    };
+
+    const date = getReferenceDate(t);
+    if (!date) return false;
     if (selectedDate) {
       const sd = selectedDate;
       return (

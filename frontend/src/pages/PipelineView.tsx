@@ -237,8 +237,34 @@ const PipelineView = () => {
   const allYears = Array.from({ length: (currentYear + 1) - 2015 }, (_, i) => String(currentYear + 1 - i));
 
   const filteredTickets = localTickets.filter(t => {
-    if (!t.createdAtRaw) return false;
-    const date = new Date(t.createdAtRaw);
+    // Prefer business-effective date if available, else fallback to created_at
+    const getReferenceDate = (ticket: Ticket): Date | null => {
+      // Try Insurance Effective Date from details for New/Cancellation work
+      // We store `details` as JSON from backend; keys can vary in casing/spaces.
+      const details = (ticket as any).details || {};
+      const tryKeys = [
+        "Insurance Effective Date",
+        "insurance_effective_date",
+        "effective_date",
+        "effectiveDate",
+      ];
+      for (const k of tryKeys) {
+        const raw = details?.[k];
+        if (typeof raw === "string" && raw.trim()) {
+          const d = new Date(raw);
+          if (!isNaN(d.getTime())) return d;
+        }
+      }
+      // Fallback to created_at
+      if (ticket.createdAtRaw) {
+        const d = new Date(ticket.createdAtRaw);
+        if (!isNaN(d.getTime())) return d;
+      }
+      return null;
+    };
+
+    const date = getReferenceDate(t);
+    if (!date) return false;
     // If exact date selected, match on yyyy-mm-dd
     if (selectedDate) {
       const sd = selectedDate;
