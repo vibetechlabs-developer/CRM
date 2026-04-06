@@ -95,7 +95,7 @@ const ChangesPipelineView = () => {
   const { data: ticketsData, isLoading } = useQuery({
       queryKey: ["tickets"],
       queryFn: async () => {
-          return await fetchAllPages("/api/tickets/");
+          return await fetchAllPages("/api/tickets/?ordering=-created_at");
       }
   });
 
