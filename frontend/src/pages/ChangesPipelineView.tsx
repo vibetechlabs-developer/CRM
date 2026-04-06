@@ -3,7 +3,9 @@ import { PipelineStage, Ticket, getTypeDisplay, getStatusDisplay, getStatusBacke
 import { PipelineCard } from "@/components/PipelineCard";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
-import { Plus, SlidersHorizontal, CheckCircle, Clock, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Plus, SlidersHorizontal, CheckCircle, Clock, Trash2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -87,6 +89,13 @@ const ChangesPipelineView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const [filterMonth, setFilterMonth] = useState<string>(String(currentMonth));
+  const [filterYear, setFilterYear] = useState<string>(String(currentYear));
+  const [filterDate, setFilterDate] = useState<string>("");
+
   const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [isMoveConfirmOpen, setIsMoveConfirmOpen] = useState(false);
@@ -224,8 +233,30 @@ const ChangesPipelineView = () => {
     setPendingMove(null);
   };
 
-	// Show all change tickets without date-based filtering
-	const filteredTickets = localTickets;
+	const filteredTickets = localTickets.filter(t => {
+    if (!t.createdAtRaw) return true;
+    const tDate = new Date(t.createdAtRaw);
+    if (isNaN(tDate.getTime())) return true;
+
+    if (filterDate) {
+      const dDate = new Date(filterDate);
+      return tDate.getFullYear() === dDate.getFullYear() &&
+             tDate.getMonth() === dDate.getMonth() &&
+             tDate.getDate() === dDate.getDate();
+    } else {
+      let matchesMonth = true;
+      let matchesYear = true;
+
+      if (filterMonth && filterMonth !== "all") {
+        matchesMonth = (tDate.getMonth() + 1) === parseInt(filterMonth);
+      }
+      if (filterYear && filterYear !== "all") {
+        matchesYear = tDate.getFullYear() === parseInt(filterYear);
+      }
+
+      return matchesMonth && matchesYear;
+    }
+  });
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -234,7 +265,52 @@ const ChangesPipelineView = () => {
           <h1 className="text-2xl font-bold">Changes Pipeline</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Manage and track changes requests</p>
         </div>
-		<div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-background/50 p-1.5 rounded-lg border shadow-sm">
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <SelectTrigger className="w-[110px] h-8 text-xs">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <SelectItem key={m} value={String(m)}>
+                    {new Date(2000, m - 1, 1).toLocaleString('default', { month: 'short' })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterYear} onValueChange={setFilterYear}>
+              <SelectTrigger className="w-[90px] h-8 text-xs">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Years</SelectItem>
+                {Array.from({ length: 10 }, (_, i) => currentYear - 5 + i).map(y => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center relative">
+              <Input 
+                type="date" 
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-auto h-8 text-xs pr-8"
+              />
+              {filterDate && (
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-6 w-6 absolute right-1 hover:bg-transparent" 
+                  onClick={() => setFilterDate("")}
+                  title="Clear Date"
+                >
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              )}
+            </div>
+          </div>
           <Button onClick={() => navigate("/new-ticket")} className="gap-2 shrink-0">
             <Plus className="h-4 w-4" /> New Ticket
           </Button>
