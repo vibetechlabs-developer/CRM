@@ -54,8 +54,16 @@ class TicketViewSet(ModelViewSet):
         ).exclude(status="DISCARDED").update(status="DISCARDED")
 
         qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
-        # Show all tickets to all authenticated CRM users.
-        # (Urgent visibility fix for pipeline/tickets views.)
+        
+        user_role = str(getattr(self.request.user, "role", "") or "").strip().upper()
+        is_admin = (
+            user_role in {"ADMIN", "MANAGER"}
+            or getattr(self.request.user, "is_staff", False)
+            or getattr(self.request.user, "is_superuser", False)
+        )
+        
+        if not is_admin:
+            qs = qs.filter(assigned_to=self.request.user)
 
         # ticket_type is special in this app:
         # - UI uses ADJUSTMENT / CUSTOMER_ISSUE, while backend stores adjustment as CHANGES (+ a marker for customer issue).
