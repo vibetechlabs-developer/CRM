@@ -145,7 +145,8 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
         style={style}
         {...listeners}
         {...attributes}
-        className="bg-card rounded-xl p-4 border shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing group relative touch-none"
+        onClick={() => setActionType("view")}
+        className="bg-card rounded-xl p-3 border shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group relative touch-none"
       >
         <div className="flex items-start justify-between mb-2 relative z-20">
           <div className="flex flex-col">
@@ -156,9 +157,12 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
               {ticket.priority}
             </span>
           </div>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div 
+            className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <button
-              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setActionType("view")}
               className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded"
             >
@@ -168,7 +172,6 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <button
-                    onPointerDown={(e) => e.stopPropagation()}
                     className="p-1 text-muted-foreground hover:text-destructive hover:bg-secondary rounded"
                     disabled={isDiscarding}
                   >
@@ -201,7 +204,7 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
         <h4 className="font-semibold text-sm mb-0.5 leading-tight">{ticket.clientName}</h4>
         <p className="text-xs text-muted-foreground mb-3 truncate">{ticket.insuranceType}</p>
 
-        <div className="flex flex-wrap gap-1.5 mb-4">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
             {ticket.type}
           </span>
@@ -210,28 +213,7 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
           </span>
         </div>
 
-        <div 
-          className="mb-4 relative" 
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <Textarea
-            placeholder="Add notes..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={handleSave}
-            className="text-xs min-h-[60px] resize-none bg-secondary/30 border-muted placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/50"
-          />
-          {updateNotesMutation.isPending && (
-            <div className="absolute right-2 bottom-2">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between mt-auto pt-3 border-t">
+        <div className="flex items-center justify-between mt-auto pt-2 border-t">
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6 border shadow-sm">
               <AvatarFallback className="text-[10px] bg-secondary font-medium">{(ticket.assignedTo && ticket.assignedTo !== "Unassigned") ? ticket.assignedTo.charAt(0).toUpperCase() : "U"}</AvatarFallback>
@@ -332,12 +314,28 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
                       )}
                     </tr>
                   ))}
-                  {(ticket.additionalNotes || ticket.notes) && (
-                    <tr className="bg-card">
-                      <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Notes</th>
-                      <td className="px-3 py-2 whitespace-pre-wrap">{ticket.additionalNotes || ticket.notes}</td>
-                    </tr>
-                  )}
+                  <tr className="bg-card">
+                    <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Notes</th>
+                    <td className="px-3 py-2">
+                      <div className="relative">
+                        <Textarea
+                          placeholder="Add notes..."
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          onBlur={handleSave}
+                          className="text-sm min-h-[80px] w-full resize-none bg-background focus-visible:ring-1"
+                        />
+                        {updateNotesMutation.isPending && (
+                          <div className="absolute right-2 bottom-2">
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
