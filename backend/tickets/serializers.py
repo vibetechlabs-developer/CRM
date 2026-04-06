@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from users.models import User
-from .models import Ticket, TicketActivity, Note, Notification
+from .models import Ticket, TicketActivity, Note, Notification, Binder
 import re
 
 
@@ -321,3 +321,8 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = "__all__"
+
+class BinderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Binder
+        fields = "__all__"

@@ -1,4 +1,4 @@
-import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell, SlidersHorizontal, RefreshCw } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, FileText, UserCog, Settings, Shield, ArchiveX, FileEdit, Bell, SlidersHorizontal, RefreshCw, Briefcase, CalendarDays } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
@@ -13,6 +13,8 @@ const overviewItems = [
   { title: "Project Pipeline", url: "/pipeline", icon: GitBranch },
   { title: "Renewal Pipeline", url: "/renewal-pipeline", icon: RefreshCw },
   { title: "Changes Pipeline", url: "/changes-pipeline", icon: SlidersHorizontal },
+  { title: "Binder Pipeline", url: "/binder-pipeline", icon: Briefcase },
+  { title: "Daily Planner", url: "/daily-planner", icon: CalendarDays },
 ];
 
 const managementItems = [

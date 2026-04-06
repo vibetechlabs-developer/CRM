@@ -1,6 +1,6 @@
 from django.contrib.auth import password_validation
 from rest_framework import serializers
-from .models import User
+from .models import User, AgentNote
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -103,3 +103,9 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context.get("request").user if self.context.get("request") else None
         password_validation.validate_password(value, user=user)
         return value
+
+class AgentNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentNote
+        fields = ['id', 'user', 'date', 'content', 'priority', 'is_completed', 'created_at']
+        read_only_fields = ['user', 'created_at']

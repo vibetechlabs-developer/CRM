@@ -9,12 +9,13 @@ from rest_framework import filters
 
 from users.models import User
 from common.permissions import IsAdminOrAssignedAgent, IsAdminRole, DenyDeleteForManager
-from .models import Ticket, TicketActivity, Note, Notification
+from .models import Ticket, TicketActivity, Note, Notification, Binder
 from .serializers import (
     TicketSerializer,
     TicketActivitySerializer,
     NoteSerializer,
     NotificationSerializer,
+    BinderSerializer,
 )
 from .services import auto_assign_ticket
 
@@ -339,3 +340,47 @@ class NotificationViewSet(ModelViewSet):
     def mark_all_read(self, request):
         Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return Response({"success": True})
+
+class BinderViewSet(ModelViewSet):
+    serializer_class = BinderSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    search_fields = ['client_name', 'company_name', 'quote_person', 'binder_person', 'task']
+    filterset_fields = []
+    ordering_fields = ['binder_date', 'created_at']
+    ordering = ['binder_date']  # Default ascending order
+
+    def get_queryset(self):
+        qs = Binder.objects.all().order_by('binder_date')
+        return qs
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        import csv
+        from django.http import HttpResponse
+
+        qs = self.filter_queryset(self.get_queryset())
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="binders_export.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Date', 'Quote Person', 'Binder Person', 'Client Name',
+            'Company Name', 'Task', 'Notes', 'Created At'
+        ])
+
+        for binder in qs:
+            writer.writerow([
+                binder.binder_date,
+                binder.quote_person,
+                binder.binder_person,
+                binder.client_name,
+                binder.company_name,
+                binder.task,
+                binder.notes,
+                binder.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            ])
+            
+        return response

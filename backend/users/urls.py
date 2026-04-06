@@ -1,8 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import CurrentUserView, UserViewSet, ChangePasswordView, TicketStatsAPIView, TicketDetailsAPIView
+from .views import CurrentUserView, UserViewSet, ChangePasswordView, TicketStatsAPIView, TicketDetailsAPIView, AgentNoteViewSet
 
 router = DefaultRouter()
+router.register(r'notes', AgentNoteViewSet, basename='agent-note')
 router.register(r'', UserViewSet, basename='user')
 
 urlpatterns = [

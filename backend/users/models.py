@@ -39,3 +39,23 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
+
+class AgentNote(models.Model):
+    PRIORITY_CHOICES = [
+        ("HIGH", "High"),
+        ("MEDIUM", "Medium"),
+        ("LOW", "Low"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notes")
+    date = models.DateField()
+    content = models.TextField()
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="MEDIUM")
+    is_completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date', '-priority']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date} - {self.priority}"

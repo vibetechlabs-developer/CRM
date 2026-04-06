@@ -5,7 +5,7 @@ from rest_framework.routers import DefaultRouter
 from clients.views import ClientViewSet
 from policies.views import PolicyViewSet
 from tickets.views import TicketViewSet
-from tickets.views import NotificationViewSet
+from tickets.views import NotificationViewSet, BinderViewSet
 from tickets.insurance_form_views import (
     submit_insurance_form,
     submit_renewal_form,
@@ -19,6 +19,7 @@ router.register(r'clients', ClientViewSet, basename="clients")
 router.register(r'policies', PolicyViewSet, basename="policies")
 router.register(r'tickets', TicketViewSet, basename="tickets")
 router.register(r'notifications', NotificationViewSet, basename="notifications")
+router.register(r'binders', BinderViewSet, basename="binders")
 
 urlpatterns = [
 

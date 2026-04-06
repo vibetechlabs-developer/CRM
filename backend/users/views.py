@@ -11,8 +11,8 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 
-from .serializers import UserSerializer, CurrentUserUpdateSerializer, ChangePasswordSerializer
-from .models import User
+from .serializers import UserSerializer, CurrentUserUpdateSerializer, ChangePasswordSerializer, AgentNoteSerializer
+from .models import User, AgentNote
 from common.permissions import IsAdminRole, IsAdminOrManagerNoDelete
 from tickets.models import Ticket, TicketActivity
 
@@ -378,3 +378,18 @@ class ChangePasswordView(APIView):
         user.set_password(new_password)
         user.save(update_fields=["password"])
         return Response({"ok": True}, status=status.HTTP_200_OK)
+
+
+class AgentNoteViewSet(ModelViewSet):
+    serializer_class = AgentNoteSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = AgentNote.objects.filter(user=self.request.user)
+        date = self.request.query_params.get('date')
+        if date:
+            qs = qs.filter(date=date)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

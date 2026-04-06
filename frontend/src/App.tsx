@@ -27,6 +27,8 @@ const RenewalPipelineView = lazy(() => import("./pages/RenewalPipelineView"));
 const ChangesPipelineView = lazy(() => import("./pages/ChangesPipelineView"));
 const Clients = lazy(() => import("./pages/Clients"));
 const Tickets = lazy(() => import("./pages/Tickets"));
+const BinderPipeline = lazy(() => import("./pages/BinderPipeline"));
+const DailyPlanner = lazy(() => import("./pages/DailyPlanner"));
 const NewTicket = lazy(() => import("./pages/NewTicket"));
 const UserControl = lazy(() => import("./pages/UserControl"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -75,6 +77,8 @@ function ProtectedRoutes() {
             <Route path="/changes-pipeline" element={<ChangesPipelineView />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/tickets" element={<Tickets />} />
+            <Route path="/binder-pipeline" element={<BinderPipeline />} />
+            <Route path="/daily-planner" element={<DailyPlanner />} />
             <Route path="/new-ticket" element={<NewTicket />} />
             <Route path="/insurance-form/manual" element={<InsuranceFormManual />} />
             <Route path="/discarded-leads" element={<DiscardedLeads />} />

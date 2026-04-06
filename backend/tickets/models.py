@@ -232,3 +232,18 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification to {self.user_id}"
+
+class Binder(models.Model):
+    binder_date = models.DateField(default=timezone.now)
+    quote_person = models.CharField(max_length=150, blank=True)
+    binder_person = models.CharField(max_length=150, blank=True)
+    client_name = models.CharField(max_length=150)
+    company_name = models.CharField(max_length=150, blank=True)
+    task = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Binder {self.id} - {self.client_name}"
