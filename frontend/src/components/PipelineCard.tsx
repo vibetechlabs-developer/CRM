@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Ticket } from "@/lib/data";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Clock, Eye, Trash2 } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -148,9 +147,9 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
         onClick={() => setActionType("view")}
         className="bg-card rounded-xl p-3 border shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group relative touch-none"
       >
-        <div className="flex items-start justify-between mb-2 relative z-20">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-md w-fit mb-1.5">
+        <div className="flex items-center justify-between mb-2 relative z-20">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-md w-fit">
               #{String(ticket.ticket_no || ticket.id).split("-")[1] || String(ticket.ticket_no || ticket.id)}
             </span>
             <span className={`text-[9px] uppercase px-2 py-0.5 rounded border font-bold tracking-wider w-fit ${priorityColors[ticket.priority] || priorityColors.Medium}`}>
@@ -204,26 +203,13 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
         <h4 className="font-semibold text-sm mb-0.5 leading-tight">{ticket.clientName}</h4>
         <p className="text-xs text-muted-foreground mb-3 truncate">{ticket.insuranceType}</p>
 
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-1">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
             {ticket.type}
           </span>
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-secondary text-secondary-foreground">
             {ticket.stage}
           </span>
-        </div>
-
-        <div className="flex items-center justify-between mt-auto pt-2 border-t">
-          <div className="flex items-center gap-2">
-            <Avatar className="h-6 w-6 border shadow-sm">
-              <AvatarFallback className="text-[10px] bg-secondary font-medium">{(ticket.assignedTo && ticket.assignedTo !== "Unassigned") ? ticket.assignedTo.charAt(0).toUpperCase() : "U"}</AvatarFallback>
-            </Avatar>
-            <span className="text-xs font-medium text-muted-foreground">{ticket.assignedTo || "Unassigned"}</span>
-          </div>
-          <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md">
-            <Clock className="h-3 w-3" />
-            <span>8d</span>
-          </div>
         </div>
       </div>
 
