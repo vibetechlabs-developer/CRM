@@ -391,4 +391,4 @@ class BinderViewSet(ModelViewSet):
                 binder.created_at.strftime("%b %d, %Y") if binder.created_at else ""
             ])
             
-        return response
+        return response

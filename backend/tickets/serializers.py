@@ -325,4 +325,4 @@ class NotificationSerializer(serializers.ModelSerializer):
 class BinderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Binder
-        fields = "__all__"
+        fields = "__all__"

@@ -246,4 +246,4 @@ class Binder(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Binder {self.id} - {self.client_name}"
+        return f"Binder {self.id} - {self.client_name}"

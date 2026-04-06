@@ -101,17 +101,20 @@ const PipelineView = () => {
   const [pendingMove, setPendingMove] = useState<{ ticketId: string; fromStage: PipelineStage; toStage: PipelineStage } | null>(null);
 
   const { data: ticketsData, isLoading } = useQuery({
-      queryKey: ["tickets"],
+      queryKey: ["tickets", "project"],
       queryFn: async () => {
-          return await fetchAllPages("/api/tickets/?ordering=-created_at");
+          return await fetchAllPages("/api/tickets/?ticket_type=NEW&ordering=-created_at");
       }
   });
 
   useEffect(() => {
     import("@/lib/normalize").then(({ normalizeListResponse }) => {
       const safeTickets = normalizeListResponse(ticketsData);
-			// Show all tickets in the pipeline (no type-based filtering)
-			setLocalTickets(safeTickets.map(formatTicket));
+      // Safety net: keep Project Pipeline restricted to NEW tickets only.
+      const projectTickets = safeTickets.filter(
+        (t: any) => String(t?.ticket_type || "").toUpperCase() === "NEW"
+      );
+			setLocalTickets(projectTickets.map(formatTicket));
     });
   }, [ticketsData]);
 
@@ -121,10 +124,10 @@ const PipelineView = () => {
           return res.data;
       },
       onMutate: async ({ id, status }) => {
-          await queryClient.cancelQueries({ queryKey: ["tickets"] });
-          const previousTickets = queryClient.getQueryData(["tickets"]);
+          await queryClient.cancelQueries({ queryKey: ["tickets", "project"] });
+          const previousTickets = queryClient.getQueryData(["tickets", "project"]);
           
-          queryClient.setQueryData(["tickets"], (old: any) => {
+          queryClient.setQueryData(["tickets", "project"], (old: any) => {
               if (!old) return old;
               return old.map((t: any) => 
                   String(t.id) === String(id) ? { ...t, status: status } : t
@@ -135,11 +138,11 @@ const PipelineView = () => {
       },
       onError: (err, variables, context: any) => {
           if (context?.previousTickets) {
-              queryClient.setQueryData(["tickets"], context.previousTickets);
+              queryClient.setQueryData(["tickets", "project"], context.previousTickets);
           }
       },
       onSettled: () => {
-          queryClient.invalidateQueries({ queryKey: ["tickets"] });
+          queryClient.invalidateQueries({ queryKey: ["tickets", "project"] });
       }
   });
 
