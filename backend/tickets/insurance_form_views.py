@@ -96,17 +96,20 @@ def submit_insurance_form(request):
             field_errors["email"] = ["Invalid email address"]
             return Response({"success": False, "field_errors": field_errors}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Find or create client
-        client, created = Client.objects.get_or_create(
-            email=email,
-            defaults={
-                'first_name': first_name,
-                'last_name': last_name,
-                'phone': phone,
-                'occupation': occupation,
-                'address': full_address,
-            }
-        )
+        # Find or create client (handling MultipleObjectsReturned gracefully)
+        client = Client.objects.filter(email=email).first()
+        if client:
+            created = False
+        else:
+            client = Client.objects.create(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                occupation=occupation,
+                address=full_address,
+            )
+            created = True
         
         # Update client if it already exists
         if not created:
@@ -381,16 +384,19 @@ def submit_typed_form(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        client, created = Client.objects.get_or_create(
-            email=email,
-            defaults={
-                'first_name': first_name,
-                'last_name': last_name,
-                'phone': phone,
-                'occupation': occupation,
-                'address': full_address,
-            }
-        )
+        client = Client.objects.filter(email=email).first()
+        if client:
+            created = False
+        else:
+            client = Client.objects.create(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                occupation=occupation,
+                address=full_address,
+            )
+            created = True
         if not created:
             client.first_name = first_name
             client.last_name = last_name

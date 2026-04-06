@@ -140,10 +140,27 @@ class Ticket(models.Model):
 
         # Handle Notifications safely (no blocking crash)
         self._trigger_whatsapp_notifications(is_new, old_status)
+        self._trigger_email_notifications(is_new, old_status)
         return result
+
+    def _trigger_email_notifications(self, is_new, old_status):
+        import logging
+        from tickets.email_services import send_ticket_completion_email
+        
+        logger = logging.getLogger(__name__)
+
+        if not getattr(self, "client", None) or not self.client.email:
+            return
+            
+        try:
+            if not is_new and old_status and old_status != self.status and self.status == "COMPLETED":
+                send_ticket_completion_email(self)
+        except Exception as e:
+            logger.error(f"Failed to trigger email notification for ticket {self.ticket_no}: {e}")
 
     def _trigger_whatsapp_notifications(self, is_new, old_status):
         import logging
+        from django.conf import settings
         from whatsapp.services import send_whatsapp_message
         
         logger = logging.getLogger(__name__)
@@ -152,9 +169,21 @@ class Ticket(models.Model):
         if not getattr(self, "client", None) or not self.client.phone:
             return
 
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+
         try:
             if is_new:
-                msg = f"Hello {self.client.first_name},\n\nWe have received your request. Your ticket number is *{self.ticket_no}* ({self.get_ticket_type_display()}).\nWe will get back to you shortly."
+                links = (
+                    f"New Business: {frontend_url}/forms/new-business\n"
+                    f"Renewal: {frontend_url}/forms/renewal\n"
+                    f"Changes: {frontend_url}/forms/changes"
+                )
+                msg = (
+                    f"Hello {self.client.first_name},\n\n"
+                    f"We have received your request. Your ticket number is *{self.ticket_no}* ({self.get_ticket_type_display()}).\n"
+                    f"We will get back to you shortly.\n\n"
+                    f"Helpful Links:\n{links}"
+                )
                 send_whatsapp_message(self.client.phone, msg)
             elif old_status and old_status != self.status and self.status == "COMPLETED":
                 msg = f"Hello {self.client.first_name},\n\nYour ticket *{self.ticket_no}* has been marked as COMPLETED. If you have any further questions, please let us know."
@@ -183,6 +212,18 @@ class TicketActivity(models.Model):
     message = models.TextField()
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            try:
+                from tickets.email_services import send_issue_resolution_update_email
+                send_issue_resolution_update_email(self.ticket, self.message)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send activity email: {e}")
 
     def __str__(self):
         return f"Activity for {self.ticket.ticket_no}"
