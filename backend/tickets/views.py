@@ -373,14 +373,14 @@ class BinderViewSet(ModelViewSet):
 
         for binder in qs:
             writer.writerow([
-                binder.binder_date,
+                binder.binder_date.strftime("%b %d, %Y") if binder.binder_date else "",
                 binder.quote_person,
                 binder.binder_person,
                 binder.client_name,
                 binder.company_name,
                 binder.task,
                 binder.notes,
-                binder.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                binder.created_at.strftime("%b %d, %Y") if binder.created_at else ""
             ])
             
         return response

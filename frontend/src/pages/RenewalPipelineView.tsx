@@ -5,7 +5,7 @@ import { PipelineColumn } from "@/components/PipelineColumn";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Plus, RefreshCw, CheckCircle, Clock, Trash2, X } from "lucide-react";
+import { Plus, RefreshCw, CheckCircle, Clock, Trash2, X, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { exportTicketsToCSV } from "@/lib/utils";
 
 const renewalPipelineStages: PipelineStage[] = ["Renewal", "Follow Up", "Completed", "Discarded Leads"];
 
@@ -209,34 +210,52 @@ const RenewalPipelineView = () => {
     const tDate = new Date(t.createdAtRaw);
     if (isNaN(tDate.getTime())) return true;
 
+    const isTerminal = t.stage === "Completed" || t.stage === "Discarded Leads";
+
     if (filterDate) {
       const dDate = new Date(filterDate);
-      return tDate.getFullYear() === dDate.getFullYear() &&
-             tDate.getMonth() === dDate.getMonth() &&
-             tDate.getDate() === dDate.getDate();
+      if (isTerminal) {
+        return tDate.getFullYear() === dDate.getFullYear() &&
+               tDate.getMonth() === dDate.getMonth() &&
+               tDate.getDate() === dDate.getDate();
+      } else {
+        const tDateStart = new Date(tDate.getFullYear(), tDate.getMonth(), tDate.getDate());
+        const dDateStart = new Date(dDate.getFullYear(), dDate.getMonth(), dDate.getDate());
+        return tDateStart.getTime() <= dDateStart.getTime();
+      }
     } else {
-      let matchesMonth = true;
-      let matchesYear = true;
+      if (filterYear === "all" && filterMonth === "all") return true;
 
-      if (filterMonth && filterMonth !== "all") {
-        matchesMonth = (tDate.getMonth() + 1) === parseInt(filterMonth);
-      }
-      if (filterYear && filterYear !== "all") {
-        matchesYear = tDate.getFullYear() === parseInt(filterYear);
-      }
+      const fYear = filterYear !== "all" ? parseInt(filterYear) : null;
+      const fMonth = filterMonth !== "all" ? parseInt(filterMonth) - 1 : null;
 
-      return matchesMonth && matchesYear;
+      const tYear = tDate.getFullYear();
+      const tMonth = tDate.getMonth();
+
+      if (isTerminal) {
+        if (fYear !== null && tYear !== fYear) return false;
+        if (fMonth !== null && tMonth !== fMonth) return false;
+        return true;
+      } else {
+        if (fYear !== null) {
+          if (tYear > fYear) return false;
+          if (tYear === fYear && fMonth !== null && tMonth > fMonth) return false;
+        } else {
+          if (fMonth !== null && tMonth > fMonth) return false;
+        }
+        return true;
+      }
     }
   });
 
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold">Renewal Pipeline</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Manage and track renewal requests</p>
+        <div className="min-w-0 flex-shrink">
+          <h1 className="text-2xl font-bold truncate">Renewal Pipeline</h1>
+          <p className="text-muted-foreground text-sm mt-0.5 truncate">Manage and track renewal requests</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-nowrap items-center gap-3 shrink-0 overflow-x-auto sm:overflow-visible">
           <div className="flex items-center gap-2 bg-background/50 p-1.5 rounded-lg border shadow-sm">
             <Select value={filterMonth} onValueChange={setFilterMonth}>
               <SelectTrigger className="w-[110px] h-8 text-xs">
@@ -282,9 +301,28 @@ const RenewalPipelineView = () => {
               )}
             </div>
           </div>
-          <Button onClick={() => navigate("/new-ticket")} className="gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> New Ticket
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline"
+              className="gap-2 shrink-0"
+              onClick={() => {
+                const completedTickets = filteredTickets.filter(t => t.stage === "Completed");
+                if (completedTickets.length === 0) {
+                  toast.error("No completed tickets found for the selected period.");
+                  return;
+                }
+                exportTicketsToCSV(completedTickets, "renewal_tickets_completed.csv");
+              }}
+            >
+              <Download className="h-4 w-4" /> Export Completed
+            </Button>
+            <Button 
+              className="gap-2 shrink-0" 
+              onClick={() => navigate("/new-ticket")}
+            >
+              <Plus className="h-4 w-4" /> New Ticket
+            </Button>
+          </div>
         </div>
       </div>
 
