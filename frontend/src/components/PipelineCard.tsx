@@ -264,9 +264,9 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
                     </td>
                   </tr>
                   {ticket.clientOccupation && (
-                    <tr className="bg-card">
+                    <tr className="bg-card group/row">
                       <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Occupation</th>
-                      <td className="px-3 py-2 whitespace-pre-wrap">{ticket.clientOccupation}</td>
+                      <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.clientOccupation}<CopyButton value={ticket.clientOccupation} /></span></td>
                     </tr>
                   )}
                   {ticket.clientEmail && (
@@ -282,47 +282,47 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
                     </tr>
                   )}
                   {ticket.clientAddress && (
-                    <tr className="bg-card">
+                    <tr className="bg-card group/row">
                       <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Address</th>
-                      <td className="px-3 py-2 whitespace-pre-wrap break-words">{ticket.clientAddress}</td>
+                      <td className="px-3 py-2 whitespace-pre-wrap break-words"><span className="flex items-center gap-1">{ticket.clientAddress}<CopyButton value={ticket.clientAddress} /></span></td>
                     </tr>
                   )}
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Type</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap font-medium">{ticket.type}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap font-medium"><span className="flex items-center gap-1">{ticket.type}<CopyButton value={ticket.type} /></span></td>
                   </tr>
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Insurance</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.insuranceType || "-"}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.insuranceType || "-"}<CopyButton value={ticket.insuranceType || "-"} /></span></td>
                   </tr>
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Stage</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.stage}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.stage}<CopyButton value={ticket.stage} /></span></td>
                   </tr>
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Priority</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.priority}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.priority}<CopyButton value={ticket.priority} /></span></td>
                   </tr>
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Assigned To</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.assignedTo || "Unassigned"}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.assignedTo || "Unassigned"}<CopyButton value={ticket.assignedTo || "Unassigned"} /></span></td>
                   </tr>
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Created Date</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.createdDate}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.createdDate}<CopyButton value={ticket.createdDate} /></span></td>
                   </tr>
                   {parseDetails(ticket.details).map((row, idx) => (
-                    <tr key={`detail-${ticket.id}-${idx}`} className="bg-card">
+                    <tr key={`detail-${ticket.id}-${idx}`} className="bg-card group/row">
                       {row.key ? (
                         <>
                           <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top break-words">
                             {row.key}
                           </th>
-                          <td className="px-3 py-2 whitespace-pre-wrap break-words">{row.value}</td>
+                          <td className="px-3 py-2 whitespace-pre-wrap break-words"><span className="flex items-center gap-1">{row.value}<CopyButton value={row.value} /></span></td>
                         </>
                       ) : (
                         <td colSpan={2} className="px-3 py-2 whitespace-pre-wrap break-words text-muted-foreground">
-                          {row.value}
+                          <span className="flex items-center gap-1">{row.value}<CopyButton value={row.value} /></span>
                         </td>
                       )}
                     </tr>
