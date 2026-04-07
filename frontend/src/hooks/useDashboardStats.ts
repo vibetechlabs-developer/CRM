@@ -56,12 +56,18 @@ export function useDashboardStats(statsData: any) {
      const typesMap = [
        { name: "New Policy", color: "hsl(220, 70%, 50%)" },
        { name: "Renewal", color: "hsl(168, 60%, 45%)" },
-       { name: "Adjustment", color: "hsl(270, 60%, 55%)" },
+       { name: "Changes", color: "hsl(270, 60%, 55%)" },
        { name: "Cancellation", color: "hsl(0, 72%, 55%)" },
      ];
      return typesMap.map(t => {
          const count = typeCounts.reduce((acc: number, curr: any) => {
-             if (getTypeDisplay(curr.ticket_type) === t.name) {
+             const typeCode = (curr.ticket_type || "").toUpperCase();
+             // "Changes" bucket: merge CHANGES + ADJUSTMENT + CUSTOMER_ISSUE
+             if (t.name === "Changes") {
+                 if (["CHANGES", "ADJUSTMENT", "CUSTOMER_ISSUE"].includes(typeCode)) {
+                     return acc + curr.count;
+                 }
+             } else if (getTypeDisplay(curr.ticket_type) === t.name) {
                  return acc + curr.count;
              }
              return acc;

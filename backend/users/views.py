@@ -38,9 +38,27 @@ class UserViewSet(ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """
-        Disallow deletion of users for all roles. Return 403.
+        ADMIN only: delete a user account.
+        - Cannot delete yourself.
+        - Cannot delete the last remaining ADMIN.
         """
-        return Response({"detail": "User deletion is disabled."}, status=status.HTTP_403_FORBIDDEN)
+        if getattr(request.user, "role", None) != "ADMIN":
+            return Response({"detail": "Only admins can delete users."}, status=status.HTTP_403_FORBIDDEN)
+
+        instance = self.get_object()
+
+        # Prevent self-deletion
+        if instance.pk == request.user.pk:
+            return Response({"detail": "You cannot delete your own account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Prevent deleting the last admin
+        if instance.role == "ADMIN":
+            admin_count = User.objects.filter(role="ADMIN").count()
+            if admin_count <= 1:
+                return Response({"detail": "Cannot delete the last admin account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAdminRole])
     def ticket_stats(self, request):

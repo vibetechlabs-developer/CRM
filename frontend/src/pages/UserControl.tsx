@@ -258,6 +258,25 @@ const UserControl = () => {
     },
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) return;
+      await api.delete(`/api/users/${selectedUser.id}/`);
+    },
+    onSuccess: () => {
+      toast.success(`${selectedUser?.name ?? "User"} has been deleted.`);
+      setActionType(null);
+      setSelectedUser(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.detail ||
+        "Failed to delete user.";
+      toast.error(msg);
+    },
+  });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const openAction = (user: any, type: "edit" | "access" | "delete") => {
     setSelectedUser(user);
@@ -436,7 +455,18 @@ const UserControl = () => {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openAction(user, "edit")}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      {/* User deletion is disabled for all roles; hide the delete action */}
+                      {/* Delete button: only ADMIN can delete; cannot delete self */}
+                      {me?.role === "ADMIN" && user.id !== me?.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => openAction(user, "delete")}
+                          aria-label={`Delete ${user.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -772,22 +802,47 @@ const UserControl = () => {
       </Dialog>
 
       {/* Delete Alert Dialog */}
-      <AlertDialog open={actionType === "delete"} onOpenChange={() => setActionType(null)}>
+      <AlertDialog
+        open={actionType === "delete"}
+        onOpenChange={(open) => {
+          if (!open && !deleteUserMutation.isPending) {
+            setActionType(null);
+            setSelectedUser(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="h-5 w-5" />
-              Remove User Account
+              Delete User Account
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <span className="font-semibold text-foreground">{selectedUser?.name}</span>?
-              This action cannot be undone and will permanently remove their access to the CRM.
+            <AlertDialogDescription className="space-y-1">
+              <span className="block">
+                Are you sure you want to permanently delete{" "}
+                <span className="font-semibold text-foreground">{selectedUser?.name}</span>?
+              </span>
+              <span className="block text-destructive font-medium">
+                ⚠️ This action cannot be undone. Their account and all access will be removed from the CRM.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setActionType(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => setActionType(null)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-              Delete User
+            <AlertDialogCancel
+              disabled={deleteUserMutation.isPending}
+              onClick={() => {
+                setActionType(null);
+                setSelectedUser(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteUserMutation.isPending}
+              onClick={() => deleteUserMutation.mutate()}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              {deleteUserMutation.isPending ? "Deleting..." : "Yes, Delete User"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

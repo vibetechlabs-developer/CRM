@@ -26,7 +26,17 @@ class ClientViewSet(ModelViewSet):
     ]
 
     def get_queryset(self):
-        qs = Client.objects.all()
+        user = self.request.user
+        role = getattr(user, "role", None)
+
+        # AGENT role: only show clients linked to tickets assigned to this agent
+        if role == "AGENT":
+            qs = Client.objects.filter(
+                tickets__assigned_to=user
+            ).distinct()
+        else:
+            # ADMIN and MANAGER see all clients
+            qs = Client.objects.all()
 
         renewal_days_param = self.request.query_params.get("renewal_days")
         if renewal_days_param:
