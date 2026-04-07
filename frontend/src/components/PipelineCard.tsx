@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Ticket } from "@/lib/data";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Eye, Trash2 } from "lucide-react";
+import { Eye, Trash2, UserCircle, Copy, Check, ClipboardList } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
@@ -69,6 +70,26 @@ function parseDetails(details: any) {
   }
 
   return rows;
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-1 p-0.5 rounded text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-all opacity-0 group-hover/row:opacity-100"
+      title="Copy"
+    >
+      {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
 }
 
 export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: PipelineCardProps) {
@@ -203,12 +224,18 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
         <h4 className="font-semibold text-sm mb-0.5 leading-tight">{ticket.clientName}</h4>
         <p className="text-xs text-muted-foreground mb-3 truncate">{ticket.insuranceType}</p>
 
-        <div className="flex flex-wrap gap-1.5 mb-1">
+        <div className="flex flex-wrap gap-1.5 mb-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${typeColors[ticket.type]}`}>
             {ticket.type}
           </span>
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-secondary text-secondary-foreground">
             {ticket.stage}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <UserCircle className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <span className="text-[11px] text-muted-foreground truncate">
+            {ticket.assignedTo && ticket.assignedTo !== "Unassigned" ? ticket.assignedTo : <span className="italic">Unassigned</span>}
           </span>
         </div>
       </div>
@@ -226,14 +253,14 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
             <div className="border rounded-md overflow-hidden">
               <table className="w-full text-left text-sm">
                 <tbody className="divide-y divide-border">
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Client Name</th>
-                    <td className="px-3 py-2 whitespace-pre-wrap">{ticket.clientName}</td>
+                    <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.clientName}<CopyButton value={ticket.clientName} /></span></td>
                   </tr>
-                  <tr className="bg-card">
+                  <tr className="bg-card group/row">
                     <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Ticket No</th>
                     <td className="px-3 py-2 whitespace-pre-wrap font-mono text-primary">
-                      {ticket.ticket_no || ticket.id}
+                      <span className="flex items-center gap-1">{ticket.ticket_no || ticket.id}<CopyButton value={ticket.ticket_no || ticket.id} /></span>
                     </td>
                   </tr>
                   {ticket.clientOccupation && (
@@ -243,15 +270,15 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
                     </tr>
                   )}
                   {ticket.clientEmail && (
-                    <tr className="bg-card">
+                    <tr className="bg-card group/row">
                       <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Email</th>
-                      <td className="px-3 py-2 whitespace-pre-wrap break-all">{ticket.clientEmail}</td>
+                      <td className="px-3 py-2 whitespace-pre-wrap break-all"><span className="flex items-center gap-1">{ticket.clientEmail}<CopyButton value={ticket.clientEmail} /></span></td>
                     </tr>
                   )}
                   {ticket.clientPhone && (
-                    <tr className="bg-card">
+                    <tr className="bg-card group/row">
                       <th className="px-3 py-2 font-medium bg-muted/50 w-1/3 text-muted-foreground align-top">Phone</th>
-                      <td className="px-3 py-2 whitespace-pre-wrap">{ticket.clientPhone}</td>
+                      <td className="px-3 py-2 whitespace-pre-wrap"><span className="flex items-center gap-1">{ticket.clientPhone}<CopyButton value={ticket.clientPhone} /></span></td>
                     </tr>
                   )}
                   {ticket.clientAddress && (
@@ -326,7 +353,38 @@ export function PipelineCard({ ticket, onDiscard, isDiscarding = false }: Pipeli
               </table>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button
+              variant="secondary"
+              className="gap-2 sm:mr-auto"
+              onClick={() => {
+                const detailRows = parseDetails(ticket.details)
+                  .map(r => r.key ? `${r.key}: ${r.value}` : r.value)
+                  .join("\n");
+                const text = [
+                  `Ticket No : ${ticket.ticket_no || ticket.id}`,
+                  `Client    : ${ticket.clientName}`,
+                  ticket.clientPhone ? `Phone     : ${ticket.clientPhone}` : "",
+                  ticket.clientEmail ? `Email     : ${ticket.clientEmail}` : "",
+                  ticket.clientAddress ? `Address   : ${ticket.clientAddress}` : "",
+                  ticket.clientOccupation ? `Occupation: ${ticket.clientOccupation}` : "",
+                  `Type      : ${ticket.type}`,
+                  `Insurance : ${ticket.insuranceType || "-"}`,
+                  `Stage     : ${ticket.stage}`,
+                  `Priority  : ${ticket.priority}`,
+                  `Assigned  : ${ticket.assignedTo || "Unassigned"}`,
+                  `Created   : ${ticket.createdDate}`,
+                  detailRows ? `\nDetails:\n${detailRows}` : "",
+                  notes ? `\nNotes:\n${notes}` : "",
+                ].filter(Boolean).join("\n");
+                navigator.clipboard.writeText(text).then(() => {
+                  toast.success("Ticket details copied to clipboard!");
+                });
+              }}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Copy All Details
+            </Button>
             <Button variant="outline" onClick={() => { setActionType(null); setNotes(ticket.additionalNotes || ticket.notes || ""); }}>Close</Button>
           </DialogFooter>
         </DialogContent>
