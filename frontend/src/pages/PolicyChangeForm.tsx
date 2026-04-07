@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import api from "@/lib/api";
+import { ensureCsrfCookie } from "@/lib/csrf";
 import { handleApiError } from "@/lib/error-utils";
 import { useNavigate } from "react-router-dom";
 
@@ -117,6 +118,7 @@ const PolicyChangeForm = () => {
   const onSubmit = async (data: PolicyChangeFormValues) => {
     setIsSubmitting(true);
     try {
+      await ensureCsrfCookie();
       const isCrm = window.location.pathname.startsWith("/crm/");
       const payload = {
         first_name: data.first_name,

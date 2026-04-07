@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import api from "@/lib/api";
+import { ensureCsrfCookie } from "@/lib/csrf";
 import { handleApiError } from "@/lib/error-utils";
 import { useNavigate } from "react-router-dom";
 
@@ -40,6 +41,7 @@ const CustomerIssueForm = () => {
   const onSubmit = async (data: CustomerIssueFormValues) => {
     setIsSubmitting(true);
     try {
+      await ensureCsrfCookie();
       // If agent is submitting from CRM pages, label it as MANUAL on backend.
       const isCrm = window.location.pathname.startsWith("/crm/");
       const payload: any = {

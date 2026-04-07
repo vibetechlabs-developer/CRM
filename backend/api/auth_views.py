@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.http import HttpRequest
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -105,4 +107,12 @@ class LogoutView(APIView):
         resp.delete_cookie(access_cookie_name, path="/")
         resp.delete_cookie(refresh_cookie_name, path="/")
         return resp
+
+
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class CsrfTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        return Response({"ok": True})
 

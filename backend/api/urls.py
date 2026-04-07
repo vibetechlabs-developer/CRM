@@ -1,5 +1,5 @@
 from django.urls import path, include
-from api.auth_views import CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView
+from api.auth_views import CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, CsrfTokenView
 
 from rest_framework.routers import DefaultRouter
 from clients.views import ClientViewSet
@@ -26,6 +26,7 @@ urlpatterns = [
     path("auth/login/", CookieTokenObtainPairView.as_view(), name="login"),
     path("auth/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
+    path("auth/csrf/", CsrfTokenView.as_view(), name="csrf-token"),
 
     path("insurance-form/", submit_insurance_form, name="insurance-form"),
     # Public-facing "New Business" form URL using the same handler as the main insurance form

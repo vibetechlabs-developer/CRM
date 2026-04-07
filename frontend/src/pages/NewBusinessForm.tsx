@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import { ensureCsrfCookie } from "@/lib/csrf";
 import { handleApiError } from "@/lib/error-utils";
 
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ const NewBusinessForm = () => {
   const onSubmit = async (data: InsuranceFormValues) => {
     setIsSubmitting(true);
     try {
+      await ensureCsrfCookie();
       const response = await api.post("/api/forms/new-business/", data);
       
       if (response.data.success) {

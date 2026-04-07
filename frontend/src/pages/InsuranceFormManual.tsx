@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import api from "@/lib/api";
+import { ensureCsrfCookie } from "@/lib/csrf";
 import { handleApiError } from "@/lib/error-utils";
 
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ const InsuranceFormManual = () => {
   const onSubmit = async (data: InsuranceFormValues) => {
     setIsSubmitting(true);
     try {
+      await ensureCsrfCookie();
       // This form is used by agents (CRM). Send a hint so backend can label creator correctly.
       const payload = { ...data, source_override: "MANUAL" };
       const response = await api.post("/api/insurance-form/", payload);

@@ -350,20 +350,14 @@ const UserControl = () => {
               <tr className="border-b bg-secondary/50">
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">User</th>
                 <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Role</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Assigned</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Updated</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Completed</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Today</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Today Completed</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden">Ticket Types</th>
-                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden sm:table-cell">Access Rights</th>
+                <th className="text-left p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider hidden sm:table-cell">Access Rights (Display Only)</th>
                 <th className="text-right p-4 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="p-4 text-center text-sm text-muted-foreground">
+                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Spinner size="sm" />
                       <span>Loading users...</span>
@@ -372,7 +366,7 @@ const UserControl = () => {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-4 text-center text-sm text-muted-foreground">No users found.</td>
+                  <td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">No users found.</td>
                 </tr>
               ) : users.map((user) => (
                 <tr key={user.id} className="border-b last:border-0 hover:bg-secondary/30 transition-colors">
@@ -398,34 +392,6 @@ const UserControl = () => {
                       {user.role === "Admin" ? <ShieldAlert className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
                       {user.role}
                     </span>
-                  </td>
-                  <td className="p-4 hidden">
-                    <p className="text-sm font-semibold">{user.stats?.assignedTicketsCount ?? 0}</p>
-                  </td>
-                  <td className="p-4 hidden">
-                    <p className="text-sm font-semibold">{user.stats?.updatedTicketsCount ?? 0}</p>
-                  </td>
-                  <td className="p-4 hidden">
-                    <p className="text-sm font-semibold">{user.stats?.completedByUserTicketsCount ?? 0}</p>
-                  </td>
-                  <td className="p-4 hidden">
-                    <p className="text-sm font-semibold">{user.stats?.todayTicketsCount ?? 0}</p>
-                  </td>
-                  <td className="p-4 hidden">
-                    <p className="text-sm font-semibold">{user.stats?.todayCompletedTicketsCount ?? 0}</p>
-                  </td>
-                  <td className="p-4 hidden">
-                    {(() => {
-                      const counts = user.stats?.ticketTypeCounts ?? [];
-                      const lookup = new Map<string, number>(
-                        counts.map((x: any) => [String(x?.ticket_type ?? ""), Number(x?.count ?? 0)])
-                      );
-                      const order = ["NEW", "RENEWAL", "CHANGES", "CANCELLATION"];
-                      const summary = order
-                        .map((code) => `${getTypeDisplay(code as any)}: ${lookup.get(code) ?? 0}`)
-                        .join(", ");
-                      return <span className="text-xs text-muted-foreground">{summary}</span>;
-                    })()}
                   </td>
                   <td className="p-4 hidden sm:table-cell">
                     <div className="flex flex-wrap gap-1.5 max-w-[250px]">
@@ -630,7 +596,7 @@ const UserControl = () => {
               {actionType === "edit" ? "Edit User Profile" : "Manage Access Rights"}
             </DialogTitle>
             <DialogDescription>
-              {actionType === "edit" ? "Update user details and roles." : "Modify system permissions for this user."}
+              {actionType === "edit" ? "Update user details and roles." : "Modify UI permission labels for this user (display only)."}
             </DialogDescription>
           </DialogHeader>
           {selectedUser && (
@@ -748,7 +714,10 @@ const UserControl = () => {
 
               {actionType === "access" && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">Current Permissions:</p>
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                    UI display only - these permission labels are not currently enforced by backend authorization.
+                  </p>
+                  <p className="text-sm font-medium">Current Permission Labels:</p>
                   <div className="grid grid-cols-2 gap-2">
                     {PERMISSION_OPTIONS.map(p => {
                       const id = `perm-${p.replace(/\s+/g, "-").toLowerCase()}`;

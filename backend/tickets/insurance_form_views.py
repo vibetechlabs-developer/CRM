@@ -2,10 +2,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_protect
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.dateparse import parse_date
+from django_ratelimit.decorators import ratelimit
 
 from clients.models import Client
 from tickets.models import Ticket
@@ -25,9 +26,10 @@ def _safe_get_text(data, key, default=""):
     return _clean_str(data.get(key, default))
 
 
+@ratelimit(key="ip", rate="10/m", method="POST", block=True)
+@csrf_protect
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def submit_insurance_form(request):
     """
     Public endpoint for insurance form submission.
@@ -290,9 +292,10 @@ def submit_insurance_form(request):
         )
 
 
+@ratelimit(key="ip", rate="10/m", method="POST", block=True)
+@csrf_protect
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def submit_renewal_form(request):
     """
     Public endpoint: Renewal Request form.
@@ -305,9 +308,10 @@ def submit_renewal_form(request):
     return submit_typed_form(request)
 
 
+@ratelimit(key="ip", rate="10/m", method="POST", block=True)
+@csrf_protect
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def submit_changes_form(request):
     """
     Public endpoint: Policy Change Request form.
@@ -318,9 +322,10 @@ def submit_changes_form(request):
     return submit_typed_form(request)
 
 
+@ratelimit(key="ip", rate="10/m", method="POST", block=True)
+@csrf_protect
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def submit_cancellation_form(request):
     """
     Public endpoint: Cancellation Request form.
@@ -331,9 +336,10 @@ def submit_cancellation_form(request):
     return submit_typed_form(request)
 
 
+@ratelimit(key="ip", rate="10/m", method="POST", block=True)
+@csrf_protect
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def submit_customer_issue_form(request):
     """
     Public endpoint: Customer Issue form.

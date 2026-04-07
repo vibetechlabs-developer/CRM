@@ -103,7 +103,8 @@ class Ticket(models.Model):
     def save(self, *args, **kwargs):
         """
         Generate `ticket_no` safely under concurrency.
-        Also trigger WhatsApp notifications on creation and completion.
+        WhatsApp notifications are dispatched via post_save signal + transaction.on_commit
+        so they never block the DB transaction (see tickets/signals.py).
         """
         is_new = self.pk is None
         old_status = None
@@ -112,6 +113,9 @@ class Ticket(models.Model):
                 old_status = Ticket.objects.get(pk=self.pk).status
             except Ticket.DoesNotExist:
                 pass
+
+        # Stash pre-save status so the post_save signal can compare.
+        self._old_status = old_status
 
         # Cancellation tickets are always treated as discarded requests.
         if self.ticket_type == "CANCELLATION":
@@ -136,31 +140,7 @@ class Ticket(models.Model):
                 next_number = cursor.fetchone()[0]
             self.ticket_no = f"{prefix}{next_number:0{width}d}"
 
-        result = super().save(*args, **kwargs)
-
-        # Handle Notifications safely (no blocking crash)
-        self._trigger_whatsapp_notifications(is_new, old_status)
-        return result
-
-    def _trigger_whatsapp_notifications(self, is_new, old_status):
-        import logging
-        from whatsapp.services import send_whatsapp_message
-        
-        logger = logging.getLogger(__name__)
-        
-        # We only send if the client has a phone number
-        if not getattr(self, "client", None) or not self.client.phone:
-            return
-
-        try:
-            if is_new:
-                msg = f"Hello {self.client.first_name},\n\nWe have received your request. Your ticket number is *{self.ticket_no}* ({self.get_ticket_type_display()}).\nWe will get back to you shortly."
-                send_whatsapp_message(self.client.phone, msg)
-            elif old_status and old_status != self.status and self.status == "COMPLETED":
-                msg = f"Hello {self.client.first_name},\n\nYour ticket *{self.ticket_no}* has been marked as COMPLETED. If you have any further questions, please let us know."
-                send_whatsapp_message(self.client.phone, msg)
-        except Exception as e:
-            logger.error(f"Failed to send WhatsApp notification for ticket {self.ticket_no}: {e}")
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return self.ticket_no
@@ -237,6 +217,13 @@ class Binder(models.Model):
     binder_date = models.DateField(default=timezone.now)
     quote_person = models.CharField(max_length=150, blank=True)
     binder_person = models.CharField(max_length=150, blank=True)
+    binder_created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_binders",
+    )
     client_name = models.CharField(max_length=150)
     company_name = models.CharField(max_length=150, blank=True)
     task = models.CharField(max_length=255, blank=True)

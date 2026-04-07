@@ -4,7 +4,6 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from django.utils import timezone
 from rest_framework import filters
 
 from users.models import User
@@ -39,20 +38,7 @@ class TicketViewSet(ModelViewSet):
         'created_at': ['date', 'year', 'month'],
     }
 
-    # Permission control
-    def get_permissions(self):
-        # Ticket creation should be authenticated; public creation happens via /api/insurance-form/
-        if self.action == "create":
-            return [IsAuthenticated()]
-        return [IsAuthenticated()]
-
     def get_queryset(self):
-        # Auto-discard overdue renewals whenever tickets are queried.
-        Ticket.objects.filter(
-            ticket_type="RENEWAL",
-            renewal_date__lt=timezone.localdate(),
-        ).exclude(status="DISCARDED").update(status="DISCARDED")
-
         qs = Ticket.objects.all().select_related("client", "assigned_to", "policy")
         
         user_role = str(getattr(self.request.user, "role", "") or "").strip().upper()
@@ -307,6 +293,7 @@ class TicketViewSet(ModelViewSet):
     def auto_assign_all(self, request):
         """Auto-assign all unassigned tickets"""
         unassigned_tickets = Ticket.objects.filter(assigned_to__isnull=True)
+        total = unassigned_tickets.count()  # capture before loop; queryset re-eval after assignment would return 0
         assigned_count = 0
         failed_count = 0
         
@@ -324,7 +311,7 @@ class TicketViewSet(ModelViewSet):
             "message": f"Auto-assignment completed",
             "assigned": assigned_count,
             "failed": failed_count,
-            "total_processed": unassigned_tickets.count()
+            "total_processed": total
         })
 
 
@@ -342,7 +329,10 @@ class NotificationViewSet(ModelViewSet):
     ordering_fields = ["created_at"]
 
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user)
+        return (
+            Notification.objects.filter(user=self.request.user)
+            .prefetch_related("ticket", "ticket__activities")
+        )
 
     @action(detail=False, methods=["post"])
     def mark_all_read(self, request):
@@ -360,8 +350,11 @@ class BinderViewSet(ModelViewSet):
     ordering = ['binder_date']  # Default ascending order
 
     def get_queryset(self):
-        qs = Binder.objects.all().order_by('binder_date')
+        qs = Binder.objects.select_related("binder_created_by").all().order_by('binder_date')
         return qs
+
+    def perform_create(self, serializer):
+        serializer.save(binder_created_by=self.request.user)
 
     @action(detail=False, methods=['get'])
     def export(self, request):
