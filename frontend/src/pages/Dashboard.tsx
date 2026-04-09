@@ -36,6 +36,27 @@ const ChartFallback = ({ error, resetErrorBoundary }: any) => (
   </div>
 );
 
+const RADIAN = Math.PI / 180;
+const renderPiePercentLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+  if (!percent || percent <= 0) return null;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="white"
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={600}
+    >
+      {`${Math.round(percent * 100)}%`}
+    </text>
+  );
+};
+
 const Dashboard = () => {
   const { data: statsData, isLoading: isLoadingStats } = useQuery({
       queryKey: ["tickets-stats"],
@@ -58,6 +79,11 @@ const Dashboard = () => {
     completionRate,
     totalTickets
   } = useDashboardStats(statsData);
+
+  const typeTotal = useMemo(
+    () => typeData.reduce((sum, item) => sum + (Number(item.value) || 0), 0),
+    [typeData]
+  );
 
   return (
     <div className="space-y-6">
@@ -186,8 +212,15 @@ const Dashboard = () => {
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <RechartPie>
-                <Pie data={typeData} cx="50%" cy="50%" outerRadius={75} dataKey="value"
-                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie
+                  data={typeData}
+                  cx="50%"
+                  cy="52%"
+                  outerRadius={70}
+                  dataKey="value"
+                  label={renderPiePercentLabel}
+                  labelLine={false}
+                >
                   {typeData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: "8px", fontSize: 12 }} />
@@ -197,7 +230,7 @@ const Dashboard = () => {
               {typeData.map(d => (
                 <div key={d.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                  {d.name}
+                  {d.name} ({typeTotal > 0 ? Math.round((d.value / typeTotal) * 100) : 0}%)
                 </div>
               ))}
             </div>
