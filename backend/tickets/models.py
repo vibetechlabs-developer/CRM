@@ -214,9 +214,23 @@ class Notification(models.Model):
         return f"Notification to {self.user_id}"
 
 class Binder(models.Model):
+    PERSON_CHOICES = [
+        ("KALPAN", "KALPAN"),
+        ("JEEL", "JEEL"),
+        ("VATSAL", "VATSAL"),
+        ("HARSH", "HARSH"),
+        ("PRINCE", "PRINCE"),
+        ("FERIL", "FERIL"),
+    ]
+
+    TASK_CHOICES = [
+        ("PENDING", "Pending"),
+        ("COMPLETED", "Completed"),
+    ]
+
     binder_date = models.DateField(default=timezone.now)
-    quote_person = models.CharField(max_length=150, blank=True)
-    binder_person = models.CharField(max_length=150, blank=True)
+    quote_person = models.CharField(max_length=150, blank=True, choices=PERSON_CHOICES)
+    binder_person = models.CharField(max_length=150, blank=True, choices=PERSON_CHOICES)
     binder_created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -226,7 +240,7 @@ class Binder(models.Model):
     )
     client_name = models.CharField(max_length=150)
     company_name = models.CharField(max_length=150, blank=True)
-    task = models.CharField(max_length=255, blank=True)
+    task = models.CharField(max_length=20, choices=TASK_CHOICES, default="PENDING")
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

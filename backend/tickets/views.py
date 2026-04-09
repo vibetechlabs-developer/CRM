@@ -368,7 +368,7 @@ class BinderViewSet(ModelViewSet):
 
         writer = csv.writer(response)
         writer.writerow([
-            'Date', 'Quote Person', 'Binder Person', 'Client Name',
+            'Effective Date of Policy', 'Quote Person', 'Binder Person', 'Client Name',
             'Company Name', 'Task', 'Notes', 'Created At'
         ])
 

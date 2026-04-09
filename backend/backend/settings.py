@@ -41,6 +41,14 @@ def _env_list(name: str, default: list[str] | None = None) -> list[str]:
     return [v.strip() for v in raw.split(",") if v.strip()]
 
 
+def _env_int(name: str, default: int) -> int:
+    """Parse int env vars; empty or missing uses default (avoids int('') crashes)."""
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    return int(raw)
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -206,8 +214,8 @@ if CORS_ALLOW_CREDENTIALS and CORS_ALLOW_ALL_ORIGINS:
 # Auth cookies (JWT stored in HttpOnly cookies)
 AUTH_ACCESS_COOKIE_NAME = os.environ.get("AUTH_ACCESS_COOKIE_NAME", "access_token")
 AUTH_REFRESH_COOKIE_NAME = os.environ.get("AUTH_REFRESH_COOKIE_NAME", "refresh_token")
-AUTH_ACCESS_COOKIE_MAX_AGE = int(os.environ.get("AUTH_ACCESS_COOKIE_MAX_AGE", str(60 * 15)))  # 15 minutes
-AUTH_REFRESH_COOKIE_MAX_AGE = int(os.environ.get("AUTH_REFRESH_COOKIE_MAX_AGE", str(60 * 60 * 24 * 7)))  # 7 days
+AUTH_ACCESS_COOKIE_MAX_AGE = _env_int("AUTH_ACCESS_COOKIE_MAX_AGE", 60 * 15)  # 15 minutes
+AUTH_REFRESH_COOKIE_MAX_AGE = _env_int("AUTH_REFRESH_COOKIE_MAX_AGE", 60 * 60 * 24 * 7)  # 7 days
 AUTH_COOKIE_SAMESITE = os.environ.get("AUTH_COOKIE_SAMESITE", "Lax")  # "None" for cross-site SPA
 AUTH_COOKIE_SECURE = _env_bool("AUTH_COOKIE_SECURE", default=IS_PRODUCTION)
 AUTH_COOKIE_DOMAIN = os.environ.get("AUTH_COOKIE_DOMAIN") or None
@@ -231,7 +239,10 @@ CSRF_COOKIE_SECURE = _env_bool("DJANGO_CSRF_COOKIE_SECURE", default=IS_PRODUCTIO
 CSRF_TRUSTED_ORIGINS = _env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
 # HSTS (only meaningful on HTTPS). Enable by default in production, but allow override via env.
-SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0" if not IS_PRODUCTION else "31536000"))
+SECURE_HSTS_SECONDS = _env_int(
+    "DJANGO_SECURE_HSTS_SECONDS",
+    0 if not IS_PRODUCTION else 31536000,
+)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", default=IS_PRODUCTION)
 SECURE_HSTS_PRELOAD = _env_bool("DJANGO_SECURE_HSTS_PRELOAD", default=False)
 
@@ -246,3 +257,31 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID")
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "crm_whatsapp_verify")
+
+# Log 500s and tracebacks to stderr (Gunicorn/systemd/journal capture this on VPS).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO" if DEBUG else "WARNING",
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
