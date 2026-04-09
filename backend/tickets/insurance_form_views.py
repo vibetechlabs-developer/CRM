@@ -7,10 +7,12 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.dateparse import parse_date
 from django_ratelimit.decorators import ratelimit
+import logging
 
 from clients.models import Client
 from tickets.models import Ticket
 
+logger = logging.getLogger(__name__)
 
 def _clean_str(value):
     """Normalize incoming payload values to a safely stripped string."""
@@ -262,7 +264,8 @@ def submit_insurance_form(request):
         # deployments, so we also accept an explicit override from the frontend.
         source = 'MANUAL' if request.user.is_authenticated else 'WEB'
         source_override = _safe_get_text(data, "source_override", "").upper()
-        if source_override in {"MANUAL", "WEB"}:
+        # Safety: ignore source_override from unauthenticated public callers.
+        if request.user.is_authenticated and source_override in {"MANUAL", "WEB"}:
             source = source_override
         
         # Create ticket
@@ -285,9 +288,10 @@ def submit_insurance_form(request):
             'client_created': created
         }, status=status.HTTP_201_CREATED)
         
-    except Exception as e:
+    except Exception:
+        logger.exception("submit_insurance_form failed")
         return Response(
-            {'error': f'An error occurred: {str(e)}'},
+            {'error': 'An internal error occurred while submitting the form.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -427,7 +431,8 @@ def submit_typed_form(request):
         # Determine source based on authentication; allow `source_override` hint from frontend.
         source = 'MANUAL' if request.user.is_authenticated else 'WEB'
         source_override = _safe_get_text(data, "source_override", "").upper()
-        if source_override in {"MANUAL", "WEB"}:
+        # Safety: ignore source_override from unauthenticated public callers.
+        if request.user.is_authenticated and source_override in {"MANUAL", "WEB"}:
             source = source_override
 
         initial_status = 'LEAD'
@@ -461,8 +466,9 @@ def submit_typed_form(request):
             'client_created': created
         }, status=status.HTTP_201_CREATED)
 
-    except Exception as e:
+    except Exception:
+        logger.exception("submit_typed_form failed")
         return Response(
-            {'error': f'An error occurred: {str(e)}'},
+            {'error': 'An internal error occurred while submitting the form.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
