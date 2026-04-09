@@ -240,7 +240,7 @@ class Binder(models.Model):
     )
     client_name = models.CharField(max_length=150)
     company_name = models.CharField(max_length=150, blank=True)
-    task = models.CharField(max_length=20, choices=TASK_CHOICES, default="PENDING")
+    task = models.CharField(max_length=255, choices=TASK_CHOICES, default="PENDING")
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

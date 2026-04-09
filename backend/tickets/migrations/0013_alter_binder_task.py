@@ -3,6 +3,15 @@
 from django.db import migrations, models
 
 
+def normalize_binder_task_values(apps, schema_editor):
+    Binder = apps.get_model("tickets", "Binder")
+    for binder in Binder.objects.all().only("id", "task"):
+        raw = (binder.task or "").strip().lower()
+        # Legacy free-text task values are mapped to valid enum values.
+        binder.task = "COMPLETED" if "complete" in raw else "PENDING"
+        binder.save(update_fields=["task"])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,13 +19,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(normalize_binder_task_values, migrations.RunPython.noop),
         migrations.AlterField(
             model_name="binder",
             name="task",
             field=models.CharField(
                 choices=[("PENDING", "Pending"), ("COMPLETED", "Completed")],
                 default="PENDING",
-                max_length=20,
+                max_length=255,
             ),
         ),
     ]
