@@ -8,6 +8,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 
 const getTypeDisplay = (backendCode: string) => {
@@ -50,6 +61,7 @@ const formatTicket = (t: any) => {
 
 export default function DiscardedLeads() {
     const [page, setPage] = useState(1);
+    const [pageMarkAllOpen, setPageMarkAllOpen] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
     const queryClient = useQueryClient();
@@ -122,19 +134,39 @@ export default function DiscardedLeads() {
                             All discarded
                         </Button>
                         {reopenOnly ? (
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                disabled={dismissRemindersMutation.isPending || !(data?.items?.length)}
-                                onClick={() =>
-                                    dismissRemindersMutation.mutate({
-                                        ticket_ids: (data?.items || []).map((t: { id: number }) => t.id),
-                                    })
-                                }
-                            >
-                                Mark this page as seen
-                            </Button>
+                            <AlertDialog open={pageMarkAllOpen} onOpenChange={setPageMarkAllOpen}>
+                                <AlertDialogTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={dismissRemindersMutation.isPending || !(data?.items?.length)}
+                                    >
+                                        Mark this page as seen
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Mark every row on this page as seen?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Only tickets on the current page will be marked. Use the row button to mark one lead at a time.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => {
+                                                dismissRemindersMutation.mutate({
+                                                    ticket_ids: (data?.items || []).map((t: { id: number }) => t.id),
+                                                });
+                                                setPageMarkAllOpen(false);
+                                            }}
+                                        >
+                                            Mark this page
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         ) : null}
                     </div>
                 ) : null}
@@ -166,12 +198,13 @@ export default function DiscardedLeads() {
                                 <TableHead>Assigned To</TableHead>
                                 {reopenOnly ? <TableHead className="text-right whitespace-nowrap">Discarded</TableHead> : null}
                                 <TableHead className="text-right">Created Date</TableHead>
+                                {reopenOnly ? <TableHead className="w-[120px] text-right">Action</TableHead> : null}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={reopenOnly ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                                    <TableCell colSpan={reopenOnly ? 8 : 6} className="h-24 text-center text-muted-foreground">
                                         <div className="flex items-center justify-center gap-2">
                                             <Spinner size="sm" />
                                             <span>Loading discarded leads...</span>
@@ -180,13 +213,13 @@ export default function DiscardedLeads() {
                                 </TableRow>
                             ) : error ? (
                                 <TableRow>
-                                    <TableCell colSpan={reopenOnly ? 7 : 6} className="h-24 text-center text-destructive">
+                                    <TableCell colSpan={reopenOnly ? 8 : 6} className="h-24 text-center text-destructive">
                                         Failed to load discarded leads.
                                     </TableCell>
                                 </TableRow>
                             ) : discardedTickets.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={reopenOnly ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                                    <TableCell colSpan={reopenOnly ? 8 : 6} className="h-24 text-center text-muted-foreground">
                                         No discarded leads found.
                                     </TableCell>
                                 </TableRow>
@@ -208,6 +241,22 @@ export default function DiscardedLeads() {
                                             </TableCell>
                                         ) : null}
                                         <TableCell className="text-right text-muted-foreground">{ticket.createdDate}</TableCell>
+                                        {reopenOnly ? (
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 text-xs"
+                                                    disabled={dismissRemindersMutation.isPending}
+                                                    onClick={() =>
+                                                        dismissRemindersMutation.mutate({ ticket_ids: [ticket.id] })
+                                                    }
+                                                >
+                                                    Seen
+                                                </Button>
+                                            </TableCell>
+                                        ) : null}
                                     </TableRow>
                                 ))
                             )}

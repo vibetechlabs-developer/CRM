@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { pipelineStages, formatBackendTicket, type BackendTicket } from "@/lib/data";
 import { FileText, Users, CheckCircle, AlertTriangle, TrendingUp, Clock, BarChart3, PieChart, ArrowUpRight, CalendarClock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartPie, Pie, Cell, LineChart, Line } from "recharts";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { isFiniteNumber } from "@/lib/normalize";
@@ -13,6 +13,17 @@ import { ErrorBoundary } from "react-error-boundary";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { Link } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -73,6 +84,7 @@ function canUseDiscardReminders(role: string | undefined) {
 
 const Dashboard = () => {
   const { user, isLoggedIn } = useAuth();
+  const [markAllOpen, setMarkAllOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data: statsData, isLoading: isLoadingStats, isError: statsError } = useQuery({
       queryKey: ["tickets-stats", user?.id ?? "pending"],
@@ -210,7 +222,7 @@ const Dashboard = () => {
                           </div>
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             className="h-8 shrink-0 self-start text-xs"
                             disabled={dismissRemindersMutation.isPending}
@@ -222,6 +234,10 @@ const Dashboard = () => {
                       ))}
                     </ul>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use <span className="font-medium text-foreground">Mark as seen</span> on each row to hide one lead at a time.{" "}
+                    <span className="font-medium text-foreground">Mark all as seen</span> clears every reminder in your list at once.
+                  </p>
                   {discardReminderMore > 0 ? (
                     <p className="text-xs">
                       Showing first {discardReminders.length} here.{" "}
@@ -232,15 +248,38 @@ const Dashboard = () => {
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={dismissRemindersMutation.isPending}
-                      onClick={() => dismissRemindersMutation.mutate({})}
-                    >
-                      Mark all as seen
-                    </Button>
+                    <AlertDialog open={markAllOpen} onOpenChange={setMarkAllOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={dismissRemindersMutation.isPending}
+                        >
+                          Mark all as seen
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Mark all reminders as seen?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will hide every lead in the re-approach list for you (not just the ones on screen). To do them one by one, use{" "}
+                            <span className="font-medium text-foreground">Mark as seen</span> on each row instead.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              dismissRemindersMutation.mutate({});
+                              setMarkAllOpen(false);
+                            }}
+                          >
+                            Mark all
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                     <Button variant="outline" size="sm" asChild>
                       <Link to="/discarded-leads?reopenReminder=1">Open in Discarded Leads</Link>
                     </Button>
