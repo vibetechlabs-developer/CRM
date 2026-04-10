@@ -51,7 +51,7 @@ const pipelineBoardStages: PipelineStage[] = [
   "Discarded Leads",
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const formatTicket = (t: any): Ticket => {
     const { client_name = "", client_last_name = "" } = t;
     const computedName = `${client_name} ${client_last_name}`.trim();

@@ -4,7 +4,7 @@
 export function normalizeListResponse<T = unknown>(payload: unknown): T[] {
   if (Array.isArray(payload)) return payload as T[];
   if (payload && typeof payload === "object") {
-    const maybeResults = (payload as any).results;
+    const maybeResults = (payload as { results?: unknown }).results;
     if (Array.isArray(maybeResults)) return maybeResults as T[];
   }
   return [];

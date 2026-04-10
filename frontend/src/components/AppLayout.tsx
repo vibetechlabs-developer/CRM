@@ -8,6 +8,10 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 
+type HeaderNotification = {
+  is_read?: boolean;
+};
+
 function MainContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -21,7 +25,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
     },
     refetchInterval: 10000,
   });
-  const unreadCount = notifications.filter((n: any) => !n.is_read).length;
+  const unreadCount = notifications.filter((n: HeaderNotification) => !n.is_read).length;
 
   const handleLogout = () => {
     logout();

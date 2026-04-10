@@ -8,7 +8,8 @@ describe("useDashboardStats", () => {
     expect(result.current.stats).toHaveLength(4);
     expect(result.current.totalTickets).toBe(0);
     expect(result.current.activeTickets).toBe(0);
-    expect(result.current.pipelineData).toHaveLength(4); // Or whatever the initial stages count is
+    // Keep aligned with pipeline stage definitions used by the hook.
+    expect(result.current.pipelineData).toHaveLength(6);
   });
 
   it("should calculate pipeline stats correctly under edge cases", () => {
@@ -27,23 +28,21 @@ describe("useDashboardStats", () => {
 
   it("should calculate monthly trends correctly", () => {
     const data = {
-      monthly_trend: [
-        { month: "Jan", created: 10, completed: 5 },
-        { month: "Feb", created: 0, completed: 0 }
+      monthlyTrend: [
+        { month: "Jan", tickets: 10, completed: 5 },
+        { month: "Feb", tickets: 0, completed: 0 },
       ],
-      pipeline: [],
-      priority: [],
-      types: [],
-      recent: [],
-      completion_rate: 0
+      statusCounts: [],
+      priorityCounts: [],
+      typeCounts: [],
+      recentTickets: [],
+      completionRate: 0,
     };
     const { result } = renderHook(() => useDashboardStats(data));
-    
-    // Check if the backend response is mapped into the `monthlyTrend` UI variable accurately
-    // Since useDashboardStats converts backend 'created' to 'tickets' and 'completed' to 'completed'.
+
     expect(result.current.monthlyTrend).toEqual([
       { month: "Jan", tickets: 10, completed: 5 },
-      { month: "Feb", tickets: 0, completed: 0 }
+      { month: "Feb", tickets: 0, completed: 0 },
     ]);
   });
 });

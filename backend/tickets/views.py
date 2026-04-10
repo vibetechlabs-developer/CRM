@@ -4,11 +4,19 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters
 
 from users.models import User
 from common.permissions import IsAdminOrAssignedAgent, IsAdminRole, DenyDeleteForManager
-from .models import Ticket, TicketActivity, Note, Notification, Binder
+from .models import (
+    Ticket,
+    TicketActivity,
+    Note,
+    Notification,
+    Binder,
+    DiscardReopenReminderDismissal,
+)
 from .serializers import (
     TicketSerializer,
     TicketActivitySerializer,
@@ -16,7 +24,14 @@ from .serializers import (
     NotificationSerializer,
     BinderSerializer,
 )
-from .services import auto_assign_ticket
+from .services import (
+    auto_assign_ticket,
+    discard_reminder_anniversary_for_ticket,
+    tickets_in_discard_reopen_reminder_window,
+)
+
+# Dashboard preview only; full list via GET /api/tickets/?status=DISCARDED&reopen_reminder=1
+DISCARD_REOPEN_REMINDER_PREVIEW_LIMIT = 25
 
 
 class TicketViewSet(ModelViewSet):
@@ -67,6 +82,15 @@ class TicketViewSet(ModelViewSet):
             else:
                 qs = qs.filter(ticket_type=code)
 
+        reopen_flag = (self.request.query_params.get("reopen_reminder") or "").strip().lower()
+        if reopen_flag in ("1", "true", "yes"):
+            viewer = str(getattr(self.request.user, "role", "") or "").strip().upper()
+            if viewer in {"ADMIN", "AGENT", "MANAGER"}:
+                matches = tickets_in_discard_reopen_reminder_window(
+                    qs, timezone.localdate(), exclude_dismissals_for=self.request.user
+                )
+                qs = qs.filter(id__in=[t.id for t in matches])
+
         return qs
 
     def perform_create(self, serializer):
@@ -109,7 +133,6 @@ class TicketViewSet(ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         from django.db.models import Count
-        from django.utils import timezone
         import datetime
         from clients.models import Client
 
@@ -118,7 +141,7 @@ class TicketViewSet(ModelViewSet):
         total_tickets = qs.count()
         completed_tickets = qs.filter(status='COMPLETED').count()
         high_priority = qs.filter(priority='HIGH').count()
-        active_tickets = qs.exclude(status__in=['COMPLETED', 'DISCARDED_LEADS']).count()
+        active_tickets = qs.exclude(status__in=['COMPLETED', 'DISCARDED']).count()
         # For AGENT dashboard, only count clients that have tickets assigned to that agent.
         if getattr(request.user, "role", None) in ("ADMIN", "MANAGER"):
             total_clients = Client.objects.count()
@@ -178,7 +201,7 @@ class TicketViewSet(ModelViewSet):
         recent_qs = qs.order_by('-created_at')[:5]
         recent_tickets = self.get_serializer(recent_qs, many=True).data
 
-        return Response({
+        payload = {
             "totalTickets": total_tickets,
             "totalClients": total_clients,
             "completedTickets": completed_tickets,
@@ -189,8 +212,72 @@ class TicketViewSet(ModelViewSet):
             "typeCounts": type_counts,
             "priorityCounts": priority_counts,
             "monthlyTrend": buckets,
-            "recentTickets": recent_tickets
-        })
+            "recentTickets": recent_tickets,
+        }
+
+        # Year-after discard reminders: ADMIN / AGENT / MANAGER (same broad access as ticket list).
+        role = str(getattr(request.user, "role", "") or "").strip().upper()
+        if role in {"ADMIN", "AGENT", "MANAGER"}:
+            reminder_tickets = tickets_in_discard_reopen_reminder_window(
+                qs, timezone.localdate(), exclude_dismissals_for=request.user
+            )
+            payload["discardReopenReminderCount"] = len(reminder_tickets)
+            payload["discardReopenReminders"] = [
+                {
+                    "id": t.id,
+                    "ticket_no": t.ticket_no,
+                    "client_name": f"{t.client.first_name or ''} {t.client.last_name or ''}".strip()
+                    or (t.client.email or f"Client #{t.client_id}"),
+                    "discarded_at": t.discarded_at.isoformat() if t.discarded_at else None,
+                }
+                for t in reminder_tickets[:DISCARD_REOPEN_REMINDER_PREVIEW_LIMIT]
+            ]
+        else:
+            payload["discardReopenReminderCount"] = 0
+            payload["discardReopenReminders"] = []
+
+        return Response(payload)
+
+    @action(detail=False, methods=["post"], url_path="dismiss-discard-reminders")
+    def dismiss_discard_reminders(self, request):
+        role = str(getattr(request.user, "role", "") or "").strip().upper()
+        if role not in {"ADMIN", "AGENT", "MANAGER"}:
+            return Response({"detail": "Only agents, managers, and admins can dismiss these reminders."}, status=403)
+
+        qs = self.get_queryset()
+        active = tickets_in_discard_reopen_reminder_window(
+            qs, timezone.localdate(), exclude_dismissals_for=request.user
+        )
+        active_ids = {t.id for t in active}
+
+        raw_ids = request.data.get("ticket_ids")
+        if raw_ids is not None:
+            if not isinstance(raw_ids, list):
+                return Response({"detail": "ticket_ids must be a list of integers."}, status=400)
+            try:
+                want = {int(x) for x in raw_ids}
+            except (TypeError, ValueError):
+                return Response({"detail": "ticket_ids must be a list of integers."}, status=400)
+            to_dismiss_ids = want & active_ids
+        else:
+            to_dismiss_ids = active_ids
+
+        newly_recorded = 0
+        for t in active:
+            if t.id not in to_dismiss_ids:
+                continue
+            anniv = discard_reminder_anniversary_for_ticket(t)
+            if anniv is None:
+                continue
+            _, was_created = DiscardReopenReminderDismissal.objects.get_or_create(
+                user=request.user,
+                ticket=t,
+                reminder_anniversary_on=anniv,
+            )
+            if was_created:
+                newly_recorded += 1
+
+        return Response({"dismissed": len(to_dismiss_ids), "newly_recorded": newly_recorded})
 
     # Custom API: Change Ticket Status
     @action(detail=True, methods=['post'])
@@ -351,6 +438,10 @@ class BinderViewSet(ModelViewSet):
 
     def get_queryset(self):
         qs = Binder.objects.select_related("binder_created_by").all().order_by('binder_date')
+        user_role = str(getattr(self.request.user, "role", "") or "").strip().upper()
+        is_admin = user_role in {"ADMIN", "MANAGER"} or getattr(self.request.user, "is_staff", False) or getattr(self.request.user, "is_superuser", False)
+        if not is_admin:
+            qs = qs.filter(binder_created_by=self.request.user)
         return qs
 
     def perform_create(self, serializer):

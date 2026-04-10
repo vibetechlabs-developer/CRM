@@ -17,7 +17,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface BinderFormProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: any;
+  initialData?: {
+    id?: number;
+    binder_date?: string;
+    quote_person?: string;
+    binder_person?: string;
+    client_name?: string;
+    company_name?: string;
+    task?: string;
+    notes?: string;
+  };
 }
 
 const PERSON_OPTIONS = ["KALPAN", "JEEL", "VATSAL", "HARSH", "PRINCE", "FERIL"] as const;

@@ -1,6 +1,87 @@
+from datetime import timedelta
+
 from django.db.models import Count, Q, Max, F
+from django.utils import timezone
 from users.models import User
-from .models import Ticket, TicketActivity, Notification
+from .models import DiscardReopenReminderDismissal, Ticket, TicketActivity, Notification
+
+
+def _add_one_calendar_year(d):
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:
+        return d.replace(year=d.year + 1, month=2, day=28)
+
+
+def reopen_reminder_anniversary_date(discarded_date):
+    """Calendar date one year after discard (used for dismissal scoping)."""
+    return _add_one_calendar_year(discarded_date)
+
+
+def discard_reminder_anniversary_for_ticket(ticket):
+    """Anniversary date used for dismissals (matches list logic)."""
+    d = _effective_discard_local_date(ticket)
+    return reopen_reminder_anniversary_date(d) if d else None
+
+
+def _effective_discard_local_date(ticket):
+    """
+    Prefer discarded_at; if missing (legacy rows), fall back to updated_at so reminders still work.
+    Always returns the calendar date in the active timezone.
+    """
+    dt = ticket.discarded_at or ticket.updated_at
+    if dt is None:
+        return None
+    if timezone.is_aware(dt):
+        return timezone.localtime(dt).date()
+    if hasattr(dt, "date"):
+        return dt.date()
+    return dt
+
+
+def discard_in_reopen_reminder_window(discarded_date, today=None):
+    """
+    True when `today` is within 14 days before through 60 days after the
+    calendar one-year anniversary of `discarded_date` (re-approach season).
+    """
+    today = today or timezone.localdate()
+    anniv = _add_one_calendar_year(discarded_date)
+    low = anniv - timedelta(days=14)
+    high = anniv + timedelta(days=60)
+    return low <= today <= high
+
+
+def tickets_in_discard_reopen_reminder_window(base_qs, today=None, exclude_dismissals_for=None):
+    """
+    DISCARDED tickets in base_qs whose discard anniversary falls in the reminder window.
+    If exclude_dismissals_for is set, omit tickets that user has marked as seen.
+
+    Date checks run in Python using the active timezone (avoids DB __date / UTC mismatches).
+    """
+    today = today or timezone.localdate()
+    candidates = (
+        base_qs.filter(status="DISCARDED")
+        .select_related("client", "assigned_to")
+        .order_by(F("discarded_at").asc(nulls_last=True), "id")
+    )
+    dismissed_pairs = set()
+    if exclude_dismissals_for is not None and getattr(exclude_dismissals_for, "is_authenticated", False):
+        dismissed_pairs = set(
+            DiscardReopenReminderDismissal.objects.filter(user=exclude_dismissals_for).values_list(
+                "ticket_id", "reminder_anniversary_on"
+            )
+        )
+    out = []
+    for t in candidates.iterator(chunk_size=200):
+        d = _effective_discard_local_date(t)
+        if d is None:
+            continue
+        anniv = reopen_reminder_anniversary_date(d)
+        if (t.id, anniv) in dismissed_pairs:
+            continue
+        if discard_in_reopen_reminder_window(d, today):
+            out.append(t)
+    return out
 
 
 def auto_assign_ticket(ticket):

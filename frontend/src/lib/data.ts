@@ -45,7 +45,7 @@ export interface Ticket {
   assignedTo: string;
   createdDate: string;
   createdAtRaw?: string; // Add raw ISO timestamp for filtering
-  details?: any;
+  details?: Record<string, unknown>;
   notes?: string;
   additionalNotes?: string;
 }
@@ -92,7 +92,7 @@ export interface BackendTicket {
   assigned_to_username?: string;
   created_at: string;
   // Full raw form payload summary built on the backend
-  details?: any;
+  details?: Record<string, unknown>;
   additional_notes?: string;
 }
 
@@ -115,7 +115,7 @@ export interface TicketRow {
   // Ticket creator origin derived from backend `source`.
   createdBy?: "Client" | "Agent" | "Unknown";
   // Backend `details` text capturing all submitted form fields
-  details?: any;
+  details?: Record<string, unknown>;
   additionalNotes?: string;
 }
 

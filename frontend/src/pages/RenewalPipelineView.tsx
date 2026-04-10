@@ -42,7 +42,7 @@ const stageColors: Record<string, string> = {
   "Discarded Leads": "text-muted-foreground border-border bg-muted",
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const formatTicket = (t: any): Ticket => {
   const { client_name = "", client_last_name = "" } = t;
   const computedName = `${client_name} ${client_last_name}`.trim();

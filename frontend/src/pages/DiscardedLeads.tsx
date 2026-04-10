@@ -1,11 +1,14 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Spinner } from "@/components/ui/spinner";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
 
 const getTypeDisplay = (backendCode: string) => {
     switch(backendCode) {
@@ -17,7 +20,7 @@ const getTypeDisplay = (backendCode: string) => {
     }
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const formatTicket = (t: any) => {
     const { client_name = "", client_last_name = "" } = t;
     const computedName = `${client_name} ${client_last_name}`.trim();
@@ -41,21 +44,46 @@ const formatTicket = (t: any) => {
         insuranceType: t.insurance_type,
         assignedTo: assignedToDisplay,
         createdDate: new Date(t.created_at).toLocaleDateString(),
+        discardedDate: t.discarded_at ? new Date(t.discarded_at).toLocaleDateString() : "—",
     };
 };
 
 export default function DiscardedLeads() {
     const [page, setPage] = useState(1);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+    const role = String(user?.role ?? "").toUpperCase();
+    const canFilterReminders = role === "ADMIN" || role === "AGENT" || role === "MANAGER";
+    const reopenOnly = canFilterReminders && searchParams.get("reopenReminder") === "1";
+
+    useEffect(() => {
+        setPage(1);
+    }, [reopenOnly]);
+
+    const dismissRemindersMutation = useMutation({
+        mutationFn: async (body: { ticket_ids?: number[] }) => {
+            await api.post("/api/tickets/dismiss-discard-reminders/", body);
+        },
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["tickets-stats"] });
+            void queryClient.invalidateQueries({ queryKey: ["tickets", "discarded"] });
+        },
+    });
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ["tickets", "discarded", page],
+        queryKey: ["tickets", "discarded", page, reopenOnly],
         queryFn: async () => {
+            const params: Record<string, string | number> = {
+                status: "DISCARDED",
+                page,
+                ordering: "-created_at",
+            };
+            if (reopenOnly) {
+                params.reopen_reminder = "1";
+            }
             const response = await api.get("/api/tickets/", {
-                params: {
-                    status: "DISCARDED",
-                    page,
-                    ordering: "-created_at",
-                },
+                params,
             });
             const payload = response.data;
             const items = Array.isArray(payload) ? payload : (payload.results || []);
@@ -75,12 +103,57 @@ export default function DiscardedLeads() {
                     <h1 className="text-2xl font-bold text-destructive">Discarded Leads</h1>
                     <p className="text-muted-foreground text-sm mt-0.5">Review tickets and inquiries that have been discarded</p>
                 </div>
+                {canFilterReminders ? (
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            type="button"
+                            variant={reopenOnly ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSearchParams({ reopenReminder: "1" })}
+                        >
+                            Re-approach reminders only
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={!reopenOnly ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSearchParams({})}
+                        >
+                            All discarded
+                        </Button>
+                        {reopenOnly ? (
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                disabled={dismissRemindersMutation.isPending || !(data?.items?.length)}
+                                onClick={() =>
+                                    dismissRemindersMutation.mutate({
+                                        ticket_ids: (data?.items || []).map((t: { id: number }) => t.id),
+                                    })
+                                }
+                            >
+                                Mark this page as seen
+                            </Button>
+                        ) : null}
+                    </div>
+                ) : null}
             </div>
 
             <Card className="flex-1 shadow-sm border-border">
                 <CardHeader className="bg-muted/30 pb-4 border-b">
                     <CardTitle className="text-lg">Discarded History</CardTitle>
-                    <CardDescription>A total of {data?.totalCount || 0} leads have been discarded.</CardDescription>
+                    <CardDescription>
+                        {reopenOnly ? (
+                            <>
+                                Showing <strong>{data?.totalCount || 0}</strong> lead
+                                {(data?.totalCount || 0) === 1 ? "" : "s"} in the one-year re-approach window. Use
+                                pagination to see more.
+                            </>
+                        ) : (
+                            <>A total of {data?.totalCount || 0} leads have been discarded.</>
+                        )}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -91,13 +164,14 @@ export default function DiscardedLeads() {
                                 <TableHead>Insurance Type</TableHead>
                                 <TableHead>Request Type</TableHead>
                                 <TableHead>Assigned To</TableHead>
+                                {reopenOnly ? <TableHead className="text-right whitespace-nowrap">Discarded</TableHead> : null}
                                 <TableHead className="text-right">Created Date</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                    <TableCell colSpan={reopenOnly ? 7 : 6} className="h-24 text-center text-muted-foreground">
                                         <div className="flex items-center justify-center gap-2">
                                             <Spinner size="sm" />
                                             <span>Loading discarded leads...</span>
@@ -106,13 +180,13 @@ export default function DiscardedLeads() {
                                 </TableRow>
                             ) : error ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-destructive">
+                                    <TableCell colSpan={reopenOnly ? 7 : 6} className="h-24 text-center text-destructive">
                                         Failed to load discarded leads.
                                     </TableCell>
                                 </TableRow>
                             ) : discardedTickets.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                    <TableCell colSpan={reopenOnly ? 7 : 6} className="h-24 text-center text-muted-foreground">
                                         No discarded leads found.
                                     </TableCell>
                                 </TableRow>
@@ -128,6 +202,11 @@ export default function DiscardedLeads() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-muted-foreground">{ticket.assignedTo}</TableCell>
+                                        {reopenOnly ? (
+                                            <TableCell className="text-right text-muted-foreground whitespace-nowrap">
+                                                {ticket.discardedDate}
+                                            </TableCell>
+                                        ) : null}
                                         <TableCell className="text-right text-muted-foreground">{ticket.createdDate}</TableCell>
                                     </TableRow>
                                 ))

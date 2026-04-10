@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     void reloadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   return (

@@ -57,7 +57,7 @@ const parseTicketTypeCodes = (raw?: string): string[] => {
   return Array.from(new Set(mapped));
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const formatUser = (user: any) => ({
    id: user.id,
    name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username,
@@ -130,7 +130,7 @@ const UserControl = () => {
   const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
   const [ticketDetails, setTicketDetails] = useState<any>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionType, setActionType] = useState<"edit" | "access" | "delete" | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -277,7 +277,7 @@ const UserControl = () => {
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const openAction = (user: any, type: "edit" | "access" | "delete") => {
     setSelectedUser(user);
     setActionType(type);

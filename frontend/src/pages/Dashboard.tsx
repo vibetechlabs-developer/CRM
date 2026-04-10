@@ -1,9 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { pipelineStages, formatBackendTicket, type BackendTicket } from "@/lib/data";
-import { FileText, Users, CheckCircle, AlertTriangle, TrendingUp, Clock, BarChart3, PieChart, ArrowUpRight } from "lucide-react";
+import { FileText, Users, CheckCircle, AlertTriangle, TrendingUp, Clock, BarChart3, PieChart, ArrowUpRight, CalendarClock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartPie, Pie, Cell, LineChart, Line } from "recharts";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { isFiniteNumber } from "@/lib/normalize";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,8 @@ import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { motion, type Variants } from "framer-motion";
 import { ErrorBoundary } from "react-error-boundary";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
+import { Link } from "react-router-dom";
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -57,13 +59,38 @@ const renderPiePercentLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
+type DiscardReminder = {
+  id: number;
+  ticket_no: string;
+  client_name: string;
+  discarded_at: string | null;
+};
+
+function canUseDiscardReminders(role: string | undefined) {
+  const r = String(role ?? "").toUpperCase();
+  return r === "ADMIN" || r === "AGENT" || r === "MANAGER";
+}
+
 const Dashboard = () => {
-  const { data: statsData, isLoading: isLoadingStats } = useQuery({
-      queryKey: ["tickets-stats"],
+  const { user, isLoggedIn } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: statsData, isLoading: isLoadingStats, isError: statsError } = useQuery({
+      queryKey: ["tickets-stats", user?.id ?? "pending"],
       queryFn: async () => {
           const res = await api.get("/api/tickets/stats/");
           return res.data;
-      }
+      },
+      enabled: isLoggedIn,
+  });
+
+  const dismissRemindersMutation = useMutation({
+    mutationFn: async (body: { ticket_ids?: number[] }) => {
+      await api.post("/api/tickets/dismiss-discard-reminders/", body);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tickets-stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["tickets", "discarded"] });
+    },
   });
 
   const {
@@ -84,6 +111,23 @@ const Dashboard = () => {
     () => typeData.reduce((sum, item) => sum + (Number(item.value) || 0), 0),
     [typeData]
   );
+
+  const rawStats = statsData as
+    | {
+        discardReopenReminders?: DiscardReminder[];
+        discardReopenReminderCount?: number;
+      }
+    | undefined;
+  const discardReminders: DiscardReminder[] = Array.isArray(rawStats?.discardReopenReminders)
+    ? rawStats.discardReopenReminders
+    : [];
+  const discardReminderTotal =
+    typeof rawStats?.discardReopenReminderCount === "number"
+      ? rawStats.discardReopenReminderCount
+      : discardReminders.length;
+  const showReminderBanner = discardReminderTotal > 0 || discardReminders.length > 0;
+  const canDismissReminders = canUseDiscardReminders(user?.role);
+  const discardReminderMore = Math.max(0, discardReminderTotal - discardReminders.length);
 
   return (
     <div className="space-y-6">
@@ -120,6 +164,110 @@ const Dashboard = () => {
         </div>
       ) : (
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
+      {statsError ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="py-4 text-sm text-destructive">
+            Could not load dashboard stats (check that the API is running and you are logged in). Reminder counts may be missing.
+          </CardContent>
+        </Card>
+      ) : null}
+      {canDismissReminders ? (
+        <motion.div variants={itemVariants}>
+          <Card
+            className={
+              showReminderBanner
+                ? "border-amber-500/40 bg-amber-500/5 shadow-sm"
+                : "border-dashed border-muted-foreground/25 bg-muted/20 shadow-sm"
+            }
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-amber-700 dark:text-amber-400 shrink-0" />
+                Discard re-approach reminders
+              </CardTitle>
+              <CardDescription>
+                {showReminderBanner
+                  ? `${discardReminderTotal} lead${discardReminderTotal === 1 ? "" : "s"} discarded about a year ago — consider following up again.`
+                  : "No leads are in the one-year follow-up window for your account right now, or you already marked them as seen."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              {showReminderBanner ? (
+                <>
+                  <div className="max-h-60 overflow-y-auto rounded-md border border-amber-500/20 bg-background/80 px-2">
+                    <ul className="list-none py-2 space-y-2">
+                      {discardReminders.map((r) => (
+                        <li key={r.id} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                          <div className="min-w-0 text-sm">
+                            <span className="font-medium text-foreground">{r.client_name}</span>
+                            <span className="text-muted-foreground"> · {r.ticket_no}</span>
+                            {r.discarded_at ? (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                (discarded {new Date(r.discarded_at).toLocaleDateString()})
+                              </span>
+                            ) : null}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 shrink-0 self-start text-xs"
+                            disabled={dismissRemindersMutation.isPending}
+                            onClick={() => dismissRemindersMutation.mutate({ ticket_ids: [r.id] })}
+                          >
+                            Mark as seen
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {discardReminderMore > 0 ? (
+                    <p className="text-xs">
+                      Showing first {discardReminders.length} here.{" "}
+                      <Link to="/discarded-leads?reopenReminder=1" className="font-medium text-foreground underline-offset-4 hover:underline">
+                        Open full list
+                      </Link>{" "}
+                      (paginated table).
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={dismissRemindersMutation.isPending}
+                      onClick={() => dismissRemindersMutation.mutate({})}
+                    >
+                      Mark all as seen
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/discarded-leads?reopenReminder=1">Open in Discarded Leads</Link>
+                    </Button>
+                  </div>
+                  <p className="text-xs">
+                    “Seen” only hides this reminder for you; the ticket stays discarded until you change its status.
+                  </p>
+                </>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm max-w-xl">
+                    Use <span className="font-medium text-foreground">Discarded Leads</span> anytime. The filtered view shows only tickets in this reminder window.
+                  </p>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/discarded-leads?reopenReminder=1">Reminders only</Link>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/discarded-leads">All discarded</Link>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : null}
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (

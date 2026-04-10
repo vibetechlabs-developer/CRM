@@ -3,7 +3,30 @@ import { pipelineStages, formatBackendTicket } from "@/lib/data";
 import { FileText, Users, CheckCircle, AlertTriangle } from "lucide-react";
 import { getTypeDisplay, getStatusDisplay, getPriorityDisplay } from "@/lib/data";
 
-export function useDashboardStats(statsData: any) {
+type DeltaInfo = { label: string; positive: boolean };
+type StatusCount = { status: string; count: number };
+type TypeCount = { ticket_type: string; count: number };
+type PriorityCount = { priority: string; count: number };
+
+type DashboardStatsInput = {
+  totalTickets?: number;
+  totalClients?: number;
+  completedTickets?: number;
+  highPriority?: number;
+  activeTickets?: number;
+  monthStats?: {
+    ticketsDelta: DeltaInfo;
+    completedDelta: DeltaInfo;
+    highDelta: DeltaInfo;
+  };
+  statusCounts?: StatusCount[];
+  typeCounts?: TypeCount[];
+  priorityCounts?: PriorityCount[];
+  monthlyTrend?: Array<{ month: string; tickets: number; completed: number }>;
+  recentTickets?: unknown[];
+};
+
+export function useDashboardStats(statsData: DashboardStatsInput | null | undefined) {
   const {
       totalTickets = 0,
       totalClients = 0,
@@ -39,7 +62,7 @@ export function useDashboardStats(statsData: any) {
 
   const pipelineData = useMemo(() => {
      return pipelineStages.map(stage => {
-         const count = statusCounts.reduce((acc: number, curr: any) => {
+         const count = statusCounts.reduce((acc: number, curr: StatusCount) => {
              if (getStatusDisplay(curr.status) === stage) {
                  return acc + curr.count;
              }
@@ -60,7 +83,7 @@ export function useDashboardStats(statsData: any) {
        { name: "Cancellation", color: "hsl(0, 72%, 55%)" },
      ];
      return typesMap.map(t => {
-         const count = typeCounts.reduce((acc: number, curr: any) => {
+         const count = typeCounts.reduce((acc: number, curr: TypeCount) => {
              const typeCode = (curr.ticket_type || "").toUpperCase();
              // "Changes" bucket: merge CHANGES + ADJUSTMENT + CUSTOMER_ISSUE
              if (t.name === "Changes") {
@@ -83,7 +106,7 @@ export function useDashboardStats(statsData: any) {
        { name: "Low", color: "hsl(152, 55%, 45%)" },
      ];
      return priorsMap.map(p => {
-         const count = priorityCounts.reduce((acc: number, curr: any) => {
+         const count = priorityCounts.reduce((acc: number, curr: PriorityCount) => {
              if (getPriorityDisplay(curr.priority) === p.name) {
                  return acc + curr.count;
              }
@@ -93,7 +116,7 @@ export function useDashboardStats(statsData: any) {
      });
   }, [priorityCounts]);
 
-  const recentTickets = useMemo(() => rawRecentTickets.map((t: any) => formatBackendTicket(t)), [rawRecentTickets]);
+  const recentTickets = useMemo(() => rawRecentTickets.map((t) => formatBackendTicket(t)), [rawRecentTickets]);
 
   const completionRate = totalTickets > 0 ? (completedTickets / totalTickets) * 100 : 0;
 

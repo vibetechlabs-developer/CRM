@@ -9,13 +9,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         today = timezone.localdate()
+        now = timezone.now()
         updated = (
             Ticket.objects.filter(
                 ticket_type="RENEWAL",
                 renewal_date__lt=today,
             )
             .exclude(status="DISCARDED")
-            .update(status="DISCARDED")
+            .update(status="DISCARDED", discarded_at=now)
         )
         self.stdout.write(
             self.style.SUCCESS(

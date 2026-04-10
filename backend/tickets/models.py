@@ -90,8 +90,8 @@ class Ticket(models.Model):
     follow_up_date = models.DateTimeField(null=True, blank=True)
     renewal_date = models.DateField(null=True, blank=True)
 
-
-
+    # When the lead was last moved into DISCARDED (for yearly re-approach reminders).
+    discarded_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -139,6 +139,12 @@ class Ticket(models.Model):
                 cursor.execute("SELECT nextval('ticket_no_seq')")
                 next_number = cursor.fetchone()[0]
             self.ticket_no = f"{prefix}{next_number:0{width}d}"
+
+        # Track discard transitions for anniversary reminders (agent/admin dashboard).
+        if self.status == "DISCARDED" and (is_new or old_status != "DISCARDED"):
+            self.discarded_at = timezone.now()
+        elif self.status != "DISCARDED" and not is_new and old_status == "DISCARDED":
+            self.discarded_at = None
 
         return super().save(*args, **kwargs)
 
@@ -212,6 +218,39 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification to {self.user_id}"
+
+
+class DiscardReopenReminderDismissal(models.Model):
+    """
+    Per-user "mark as seen" for dashboard discard anniversary reminders.
+    Does not change ticket status; only hides the reminder for that user.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="discard_reopen_reminder_dismissals",
+    )
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name="discard_reopen_reminder_dismissals",
+    )
+    # One-year-after-discard anniversary this "seen" applies to (new season = new reminder).
+    reminder_anniversary_on = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "ticket", "reminder_anniversary_on"],
+                name="uniq_discard_reopen_reminder_user_ticket_anniv",
+            )
+        ]
+
+    def __str__(self):
+        return f"Dismissal u={self.user_id} t={self.ticket_id}"
+
 
 class Binder(models.Model):
     PERSON_CHOICES = [

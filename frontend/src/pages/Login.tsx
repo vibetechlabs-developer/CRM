@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Shield, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import api from "@/lib/api";
+import { isAxiosError } from "axios";
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -41,8 +42,8 @@ const Login = () => {
 
       
       navigate("/");
-    } catch (error) {
-      const err = error as any;
+    } catch (error: unknown) {
+      const err = isAxiosError(error) ? error : null;
       const backendMessage =
         err?.response?.data?.detail ||
         err?.response?.data?.error ||

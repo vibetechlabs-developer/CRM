@@ -17,7 +17,7 @@ class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = '__all__'
-        read_only_fields = ['ticket_no']
+        read_only_fields = ['ticket_no', 'discarded_at']
 
     def get_assigned_to_name(self, obj):
         """Return the full name of the assigned agent, or username if name is not available"""
@@ -51,6 +51,20 @@ class TicketSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"status": "Completed ticket cannot be moved to another stage."})
         if next_type == "CANCELLATION" and next_status and next_status != "DISCARDED":
             raise serializers.ValidationError({"status": "Cancellation ticket must stay in Discarded Leads."})
+
+        # Non-admin users must not reassign tickets to other users through raw serializer writes.
+        if actor and getattr(actor, "is_authenticated", False) and not is_admin:
+            requested_assignee = attrs.get("assigned_to")
+            if requested_assignee is not None:
+                if instance is not None:
+                    if requested_assignee != instance.assigned_to:
+                        raise serializers.ValidationError(
+                            {"assigned_to": "Only admin/manager can reassign tickets."}
+                        )
+                elif requested_assignee != actor:
+                    raise serializers.ValidationError(
+                        {"assigned_to": "Agents can only assign new tickets to themselves."}
+                    )
         return attrs
 
     def update(self, instance, validated_data):
