@@ -10,18 +10,34 @@ type PriorityCount = { priority: string; count: number };
 
 type DashboardStatsInput = {
   totalTickets?: number;
+  total_tickets?: number;
   totalClients?: number;
+  total_clients?: number;
   completedTickets?: number;
+  completed_tickets?: number;
   highPriority?: number;
+  high_priority?: number;
   activeTickets?: number;
+  active_tickets?: number;
   monthStats?: {
     ticketsDelta: DeltaInfo;
     completedDelta: DeltaInfo;
     highDelta: DeltaInfo;
   };
+  month_stats?: {
+    ticketsDelta?: DeltaInfo;
+    completedDelta?: DeltaInfo;
+    highDelta?: DeltaInfo;
+    tickets_delta?: DeltaInfo;
+    completed_delta?: DeltaInfo;
+    high_delta?: DeltaInfo;
+  };
   statusCounts?: StatusCount[];
+  status_counts?: StatusCount[];
   typeCounts?: TypeCount[];
+  type_counts?: TypeCount[];
   priorityCounts?: PriorityCount[];
+  priority_counts?: PriorityCount[];
   monthlyTrend?: Array<{
     month: string;
     tickets: number;
@@ -30,26 +46,53 @@ type DashboardStatsInput = {
     renewal?: number;
     changes?: number;
   }>;
+  monthly_trend?: Array<{
+    key?: string;
+    month?: string;
+    tickets?: number;
+    completed?: number;
+    newBusiness?: number;
+    new_business?: number;
+    renewal?: number;
+    changes?: number;
+  }>;
   recentTickets?: unknown[];
+  recent_tickets?: unknown[];
 };
 
 export function useDashboardStats(statsData: DashboardStatsInput | null | undefined) {
+  const toNumber = (value: unknown): number => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const monthStatsRaw = (statsData?.monthStats ?? statsData?.month_stats ?? {}) as DashboardStatsInput["monthStats"] & DashboardStatsInput["month_stats"];
+  const monthStats = {
+    ticketsDelta: monthStatsRaw?.ticketsDelta ?? monthStatsRaw?.tickets_delta ?? { label: "0%", positive: true },
+    completedDelta: monthStatsRaw?.completedDelta ?? monthStatsRaw?.completed_delta ?? { label: "0%", positive: true },
+    highDelta: monthStatsRaw?.highDelta ?? monthStatsRaw?.high_delta ?? { label: "0%", positive: true },
+  };
+
+  const monthlyTrendRaw = (statsData?.monthlyTrend ?? statsData?.monthly_trend ?? []) as DashboardStatsInput["monthlyTrend"];
+
   const {
-      totalTickets = 0,
-      totalClients = 0,
-      completedTickets = 0,
-      highPriority = 0,
-      activeTickets = 0,
-      monthStats = {
-          ticketsDelta: { label: "0%", positive: true },
-          completedDelta: { label: "0%", positive: true },
-          highDelta: { label: "0%", positive: true },
-      },
-      statusCounts = [],
-      typeCounts = [],
-      priorityCounts = [],
-      monthlyTrend = [],
-      recentTickets: rawRecentTickets = []
+      totalTickets = toNumber(statsData?.total_tickets),
+      totalClients = toNumber(statsData?.total_clients),
+      completedTickets = toNumber(statsData?.completed_tickets),
+      highPriority = toNumber(statsData?.high_priority),
+      activeTickets = toNumber(statsData?.active_tickets),
+      statusCounts = statsData?.status_counts ?? [],
+      typeCounts = statsData?.type_counts ?? [],
+      priorityCounts = statsData?.priority_counts ?? [],
+      monthlyTrend = monthlyTrendRaw.map((row) => ({
+        month: String(row.month ?? row.key ?? ""),
+        tickets: toNumber(row.tickets),
+        completed: toNumber(row.completed),
+        newBusiness: toNumber(row.newBusiness ?? row.new_business),
+        renewal: toNumber(row.renewal),
+        changes: toNumber(row.changes),
+      })),
+      recentTickets: rawRecentTickets = statsData?.recent_tickets ?? []
   } = statsData || {};
 
   const stats = useMemo(() => [
@@ -75,10 +118,10 @@ export function useDashboardStats(statsData: DashboardStatsInput | null | undefi
              }
              return acc;
          }, 0);
-         return {
-             name: stage.length > 12 ? stage.slice(0, 12) + "…" : stage,
-             count
-         };
+        return {
+            name: stage,
+            count
+        };
      });
   }, [statusCounts]);
 

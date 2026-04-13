@@ -70,6 +70,17 @@ const renderPiePercentLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
+const PipelineTooltipContent = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as { name?: string; count?: number } | undefined;
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-sm">
+      <p className="font-medium text-foreground">{row?.name ?? "-"}</p>
+      <p className="text-muted-foreground mt-0.5">{Number(row?.count ?? 0)}</p>
+    </div>
+  );
+};
+
 type DiscardReminder = {
   id: number;
   ticket_no: string;
@@ -378,10 +389,19 @@ const Dashboard = () => {
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={pipelineData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <XAxis
+                  dataKey="name"
+                  interval={0}
+                  minTickGap={0}
+                  tickFormatter={(value: string) => (value.length > 10 ? `${value.slice(0, 10)}…` : value)}
+                  tick={{ fontSize: 10 }}
+                />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(214,20%,90%)", fontSize: 12 }} />
-                <Bar dataKey="count" fill="hsl(220, 70%, 50%)" radius={[4, 4, 0, 0]} name="Tickets" />
+                <Tooltip
+                  cursor={{ fill: "hsl(220 70% 50% / 0.08)" }}
+                  content={<PipelineTooltipContent />}
+                />
+                <Bar dataKey="count" fill="hsl(220, 70%, 50%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -391,7 +411,7 @@ const Dashboard = () => {
       </div>
 
       {/* Monthly trend by request type (separate charts) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <motion.div variants={itemVariants}>
           <ErrorBoundary FallbackComponent={ChartFallback}>
             <Card className="border shadow-sm h-full">
@@ -478,6 +498,37 @@ const Dashboard = () => {
                       strokeWidth={2.5}
                       dot={{ fill: "hsl(270, 60%, 55%)", r: 3.5 }}
                       name="Changes"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary FallbackComponent={ChartFallback}>
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                  Completed (monthly)
+                </CardTitle>
+                <CardDescription className="text-xs">Tickets closed as completed each month</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={monthlyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(214,20%,90%)", fontSize: 12 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="completed"
+                      stroke="hsl(152, 55%, 45%)"
+                      strokeWidth={2.5}
+                      dot={{ fill: "hsl(152, 55%, 45%)", r: 3.5 }}
+                      name="Completed"
                     />
                   </LineChart>
                 </ResponsiveContainer>
