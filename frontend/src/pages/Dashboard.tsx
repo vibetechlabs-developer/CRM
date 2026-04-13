@@ -385,25 +385,27 @@ const Dashboard = () => {
               Pipeline Distribution
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={pipelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
-                <XAxis
-                  dataKey="name"
-                  interval={0}
-                  minTickGap={0}
-                  tickFormatter={(value: string) => (value.length > 10 ? `${value.slice(0, 10)}…` : value)}
-                  tick={{ fontSize: 10 }}
-                />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip
-                  cursor={{ fill: "hsl(220 70% 50% / 0.08)" }}
-                  content={<PipelineTooltipContent />}
-                />
-                <Bar dataKey="count" fill="hsl(220, 70%, 50%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="overflow-x-auto pb-1">
+            <div className="min-w-[420px] sm:min-w-0">
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={pipelineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                  <XAxis
+                    dataKey="name"
+                    interval={0}
+                    minTickGap={0}
+                    tickFormatter={(value: string) => (value.length > 10 ? `${value.slice(0, 10)}…` : value)}
+                    tick={{ fontSize: 10 }}
+                  />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    cursor={{ fill: "hsl(220 70% 50% / 0.08)" }}
+                    content={<PipelineTooltipContent />}
+                  />
+                  <Bar dataKey="count" fill="hsl(220, 70%, 50%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
         </ErrorBoundary>

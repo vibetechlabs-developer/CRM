@@ -145,7 +145,8 @@ class TicketViewSet(ModelViewSet):
         high_priority = qs.filter(priority='HIGH').count()
         active_tickets = qs.exclude(status__in=[*completed_statuses, *discarded_statuses]).count()
         # For AGENT dashboard, only count clients that have tickets assigned to that agent.
-        if getattr(request.user, "role", None) in ("ADMIN", "MANAGER"):
+        user_role = str(getattr(request.user, "role", "") or "").strip().upper()
+        if user_role in {"ADMIN", "MANAGER"}:
             total_clients = Client.objects.count()
         else:
             total_clients = Client.objects.filter(tickets__assigned_to=request.user).distinct().count()
@@ -198,7 +199,29 @@ class TicketViewSet(ModelViewSet):
         type_counts = list(qs.values('ticket_type').annotate(count=Count('id')))
         priority_counts = list(qs.values('priority').annotate(count=Count('id')))
 
-        changes_ticket_types = ("CHANGES", "ADJUSTMENT", "CUSTOMER_ISSUE")
+        # Be tolerant of legacy/variant values used in older/live data.
+        new_business_ticket_types = (
+            "NEW",
+            "NEW_POLICY",
+            "NEWPOLICY",
+            "NEW_BUSINESS",
+            "NEW BUSINESS",
+        )
+        renewal_ticket_types = (
+            "RENEWAL",
+            "RENEWALS",
+            "RENEWAL_REQUEST",
+            "RENEWAL REQUEST",
+        )
+        changes_ticket_types = (
+            "CHANGES",
+            "CHANGE",
+            "ADJUSTMENT",
+            "CUSTOMER_ISSUE",
+            "CUSTOMER ISSUE",
+            "POLICY_CHANGE",
+            "POLICY CHANGE",
+        )
         buckets = []
         for i in range(5, -1, -1):
             d_start = get_month_start(now, -i)
@@ -209,8 +232,8 @@ class TicketViewSet(ModelViewSet):
                 "month": d_start.strftime("%b"),
                 "tickets": bucket_qs.count(),
                 "completed": bucket_qs.filter(status__in=completed_statuses).count(),
-                "newBusiness": bucket_qs.filter(ticket_type="NEW").count(),
-                "renewal": bucket_qs.filter(ticket_type="RENEWAL").count(),
+                "newBusiness": bucket_qs.filter(ticket_type__in=new_business_ticket_types).count(),
+                "renewal": bucket_qs.filter(ticket_type__in=renewal_ticket_types).count(),
                 "changes": bucket_qs.filter(ticket_type__in=changes_ticket_types).count(),
             })
 
