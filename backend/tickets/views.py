@@ -132,7 +132,8 @@ class TicketViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        from django.db.models import Count
+        from django.db.models import Count, Value
+        from django.db.models.functions import Replace, Trim, Upper
         import datetime
         from clients.models import Client
 
@@ -200,41 +201,50 @@ class TicketViewSet(ModelViewSet):
         priority_counts = list(qs.values('priority').annotate(count=Count('id')))
 
         # Be tolerant of legacy/variant values used in older/live data.
+        # Normalize ticket_type for bucket math: trim + uppercase + spaces/hyphens => underscores.
+        normalized_ticket_type = Upper(
+            Replace(
+                Replace(Trim("ticket_type"), Value(" "), Value("_")),
+                Value("-"),
+                Value("_"),
+            )
+        )
         new_business_ticket_types = (
             "NEW",
             "NEW_POLICY",
             "NEWPOLICY",
             "NEW_BUSINESS",
-            "NEW BUSINESS",
+            "NEWBUSINESS",
         )
         renewal_ticket_types = (
             "RENEWAL",
             "RENEWALS",
             "RENEWAL_REQUEST",
-            "RENEWAL REQUEST",
+            "RENEWALREQUEST",
         )
         changes_ticket_types = (
             "CHANGES",
             "CHANGE",
             "ADJUSTMENT",
             "CUSTOMER_ISSUE",
-            "CUSTOMER ISSUE",
+            "CUSTOMERISSUE",
             "POLICY_CHANGE",
-            "POLICY CHANGE",
+            "POLICYCHANGE",
         )
         buckets = []
         for i in range(5, -1, -1):
             d_start = get_month_start(now, -i)
             d_end = get_month_start(now, -i + 1)
             bucket_qs = qs.filter(created_at__gte=d_start, created_at__lt=d_end)
+            bucket_qs_normalized = bucket_qs.annotate(ticket_type_norm=normalized_ticket_type)
             buckets.append({
                 "key": d_start.strftime("%Y-%m"),
                 "month": d_start.strftime("%b"),
                 "tickets": bucket_qs.count(),
                 "completed": bucket_qs.filter(status__in=completed_statuses).count(),
-                "newBusiness": bucket_qs.filter(ticket_type__in=new_business_ticket_types).count(),
-                "renewal": bucket_qs.filter(ticket_type__in=renewal_ticket_types).count(),
-                "changes": bucket_qs.filter(ticket_type__in=changes_ticket_types).count(),
+                "newBusiness": bucket_qs_normalized.filter(ticket_type_norm__in=new_business_ticket_types).count(),
+                "renewal": bucket_qs_normalized.filter(ticket_type_norm__in=renewal_ticket_types).count(),
+                "changes": bucket_qs_normalized.filter(ticket_type_norm__in=changes_ticket_types).count(),
             })
 
         recent_qs = qs.order_by('-created_at')[:5]
