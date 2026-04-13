@@ -137,11 +137,13 @@ class TicketViewSet(ModelViewSet):
         from clients.models import Client
 
         qs = self.get_queryset()
+        completed_statuses = ["COMPLETED", "DONE"]
+        discarded_statuses = ["DISCARDED", "DISCARDED_LEADS"]
         
         total_tickets = qs.count()
-        completed_tickets = qs.filter(status='COMPLETED').count()
+        completed_tickets = qs.filter(status__in=completed_statuses).count()
         high_priority = qs.filter(priority='HIGH').count()
-        active_tickets = qs.exclude(status__in=['COMPLETED', 'DISCARDED']).count()
+        active_tickets = qs.exclude(status__in=[*completed_statuses, *discarded_statuses]).count()
         # For AGENT dashboard, only count clients that have tickets assigned to that agent.
         if getattr(request.user, "role", None) in ("ADMIN", "MANAGER"):
             total_clients = Client.objects.count()
@@ -164,8 +166,8 @@ class TicketViewSet(ModelViewSet):
 
         tickets_this_month = created_this.count()
         tickets_prev_month = created_prev.count()
-        completed_this = created_this.filter(status='COMPLETED').count()
-        completed_prev = created_prev.filter(status='COMPLETED').count()
+        completed_this = created_this.filter(status__in=completed_statuses).count()
+        completed_prev = created_prev.filter(status__in=completed_statuses).count()
         high_this = created_this.filter(priority='HIGH').count()
         high_prev = created_prev.filter(priority='HIGH').count()
 
@@ -182,7 +184,17 @@ class TicketViewSet(ModelViewSet):
             "highDelta": pct_dict(high_this, high_prev),
         }
 
-        status_counts = list(qs.values('status').annotate(count=Count('id')))
+        raw_status_counts = list(qs.values('status').annotate(count=Count('id')))
+        status_aliases = {
+            "DONE": "COMPLETED",
+            "DISCARDED_LEADS": "DISCARDED",
+        }
+        merged_status_counts = {}
+        for row in raw_status_counts:
+            status_code = str(row.get("status") or "").upper()
+            canonical_status = status_aliases.get(status_code, status_code)
+            merged_status_counts[canonical_status] = merged_status_counts.get(canonical_status, 0) + int(row.get("count") or 0)
+        status_counts = [{"status": status, "count": count} for status, count in merged_status_counts.items()]
         type_counts = list(qs.values('ticket_type').annotate(count=Count('id')))
         priority_counts = list(qs.values('priority').annotate(count=Count('id')))
 
@@ -196,7 +208,7 @@ class TicketViewSet(ModelViewSet):
                 "key": d_start.strftime("%Y-%m"),
                 "month": d_start.strftime("%b"),
                 "tickets": bucket_qs.count(),
-                "completed": bucket_qs.filter(status='COMPLETED').count(),
+                "completed": bucket_qs.filter(status__in=completed_statuses).count(),
                 "newBusiness": bucket_qs.filter(ticket_type="NEW").count(),
                 "renewal": bucket_qs.filter(ticket_type="RENEWAL").count(),
                 "changes": bucket_qs.filter(ticket_type__in=changes_ticket_types).count(),

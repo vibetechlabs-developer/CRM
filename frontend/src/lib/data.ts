@@ -150,7 +150,11 @@ export const getStatusDisplay = (statusCode: TicketStatusCode): PipelineStage | 
       return "Changes";
     case "COMPLETED":
       return "Completed";
+    case "DONE":
+      return "Completed";
     case "DISCARDED":
+      return "Discarded Leads";
+    case "DISCARDED_LEADS":
       return "Discarded Leads";
     default:
       return statusCode;
