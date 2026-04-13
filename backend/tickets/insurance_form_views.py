@@ -14,6 +14,30 @@ from tickets.models import Ticket
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_TYPED_TICKET_TYPES = frozenset({"NEW", "RENEWAL", "CHANGES", "CANCELLATION"})
+
+# Keys handled explicitly; everything else is copied into ticket.details for traceability.
+_TYPED_FORM_PASSTHROUGH_EXCLUDE = frozenset({
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "street_address",
+    "street_address_line_2",
+    "city",
+    "state",
+    "postal_code",
+    "address",
+    "occupation",
+    "ticket_type",
+    "insurance_type",
+    "additional_details",
+    "renewal_date",
+    "source_override",
+    "csrfmiddlewaretoken",
+})
+
+
 def _clean_str(value):
     """Normalize incoming payload values to a safely stripped string."""
     if value is None:
@@ -365,7 +389,17 @@ def submit_typed_form(request):
     """
     try:
         data = request.data
-        ticket_type = _safe_get_text(data, "ticket_type", "NEW") or "NEW"
+        raw_ticket_type = (_safe_get_text(data, "ticket_type", "NEW") or "NEW").upper()
+        if raw_ticket_type not in ALLOWED_TYPED_TICKET_TYPES:
+            return Response(
+                {
+                    "success": False,
+                    "field_errors": {"ticket_type": ["Invalid ticket type"]},
+                    "error": "Invalid ticket type",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        ticket_type = raw_ticket_type
 
         # Extract client info
         first_name = _safe_get_text(data, 'first_name')
@@ -384,11 +418,33 @@ def submit_typed_form(request):
         address_parts = [p for p in [street_address, street_address_line_2, city, state, postal_code] if p]
         full_address = ', '.join(address_parts)
 
-        # Basic validation
-        if not first_name or not last_name or not email or not phone:
+        field_errors: dict[str, list[str]] = {}
+        if not first_name:
+            field_errors["first_name"] = ["First name is required"]
+        if not last_name:
+            field_errors["last_name"] = ["Last name is required"]
+        if not email:
+            field_errors["email"] = ["Email is required"]
+        if not phone:
+            field_errors["phone"] = ["Phone number is required"]
+
+        if field_errors:
+            first_msg = next((msgs[0] for msgs in field_errors.values() if msgs), "Validation failed.")
             return Response(
-                {'error': 'First name, last name, email, and phone are required'},
-                status=status.HTTP_400_BAD_REQUEST
+                {"success": False, "field_errors": field_errors, "error": first_msg},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return Response(
+                {
+                    "success": False,
+                    "field_errors": {"email": ["Invalid email address"]},
+                    "error": "Invalid email address",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         client, created = Client.objects.get_or_create(
@@ -415,12 +471,7 @@ def submit_typed_form(request):
         additional_details = _safe_get_text(data, 'additional_details')
 
         # Aggregate all unknown fields for traceability (keeps "same as JotForm" flexibility)
-        passthrough_keys = sorted(k for k in data.keys() if k not in {
-            'first_name', 'last_name', 'email', 'phone',
-            'street_address', 'street_address_line_2', 'city', 'state', 'postal_code',
-            'address', 'occupation',
-            'ticket_type', 'insurance_type', 'additional_details'
-        })
+        passthrough_keys = sorted(k for k in data.keys() if k not in _TYPED_FORM_PASSTHROUGH_EXCLUDE)
         
         details_dict = {}
         if insurance_type:

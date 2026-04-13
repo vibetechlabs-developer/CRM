@@ -186,6 +186,7 @@ class TicketViewSet(ModelViewSet):
         type_counts = list(qs.values('ticket_type').annotate(count=Count('id')))
         priority_counts = list(qs.values('priority').annotate(count=Count('id')))
 
+        changes_ticket_types = ("CHANGES", "ADJUSTMENT", "CUSTOMER_ISSUE")
         buckets = []
         for i in range(5, -1, -1):
             d_start = get_month_start(now, -i)
@@ -195,7 +196,10 @@ class TicketViewSet(ModelViewSet):
                 "key": d_start.strftime("%Y-%m"),
                 "month": d_start.strftime("%b"),
                 "tickets": bucket_qs.count(),
-                "completed": bucket_qs.filter(status='COMPLETED').count()
+                "completed": bucket_qs.filter(status='COMPLETED').count(),
+                "newBusiness": bucket_qs.filter(ticket_type="NEW").count(),
+                "renewal": bucket_qs.filter(ticket_type="RENEWAL").count(),
+                "changes": bucket_qs.filter(ticket_type__in=changes_ticket_types).count(),
             })
 
         recent_qs = qs.order_by('-created_at')[:5]
@@ -449,22 +453,29 @@ class BinderViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def export(self, request):
-        import csv
+        from io import BytesIO
         from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        from openpyxl.utils import get_column_letter
 
         qs = self.filter_queryset(self.get_queryset())
-        
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="binders_export.csv"'
 
-        writer = csv.writer(response)
-        writer.writerow([
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Binders"
+
+        headers = [
             'Effective Date of Policy', 'Quote Person', 'Binder Person', 'Client Name',
             'Company Name', 'Task', 'Notes', 'Created At'
-        ])
+        ]
+        worksheet.append(headers)
+
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True)
 
         for binder in qs:
-            writer.writerow([
+            worksheet.append([
                 binder.binder_date.strftime("%b %d, %Y") if binder.binder_date else "",
                 binder.quote_person,
                 binder.binder_person,
@@ -472,7 +483,25 @@ class BinderViewSet(ModelViewSet):
                 binder.company_name,
                 binder.task,
                 binder.notes,
-                binder.created_at.strftime("%b %d, %Y") if binder.created_at else ""
+                binder.created_at.strftime("%b %d, %Y") if binder.created_at else "",
             ])
-            
+
+        worksheet.freeze_panes = "A2"
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            for cell in column:
+                value = "" if cell.value is None else str(cell.value)
+                max_length = max(max_length, len(value))
+            worksheet.column_dimensions[column_letter].width = min(max(12, max_length + 2), 40)
+
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="binders_export.xlsx"'
         return response

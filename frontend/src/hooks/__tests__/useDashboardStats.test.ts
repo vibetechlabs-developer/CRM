@@ -44,5 +44,27 @@ describe("useDashboardStats", () => {
       { month: "Jan", tickets: 10, completed: 5 },
       { month: "Feb", tickets: 0, completed: 0 },
     ]);
+    expect(result.current.typeMonthlyTrend).toEqual([
+      { month: "Jan", newBusiness: 0, renewal: 0, changes: 0 },
+      { month: "Feb", newBusiness: 0, renewal: 0, changes: 0 },
+    ]);
+  });
+
+  it("maps typeMonthlyTrend from API monthly fields", () => {
+    const data = {
+      monthlyTrend: [
+        { month: "Jan", tickets: 4, completed: 2, newBusiness: 3, renewal: 1, changes: 0 },
+        { month: "Feb", tickets: 2, completed: 1 },
+      ],
+      statusCounts: [],
+      priorityCounts: [],
+      typeCounts: [],
+      recentTickets: [],
+    };
+    const { result } = renderHook(() => useDashboardStats(data));
+    expect(result.current.typeMonthlyTrend).toEqual([
+      { month: "Jan", newBusiness: 3, renewal: 1, changes: 0 },
+      { month: "Feb", newBusiness: 0, renewal: 0, changes: 0 },
+    ]);
   });
 });

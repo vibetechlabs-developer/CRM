@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   endOfDay,
   endOfWeek,
@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import api, { fetchAllPages } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Download, Plus, Pencil, Search } from "lucide-react";
+import { Download, Plus, Search } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +22,6 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
-  PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
@@ -34,21 +33,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BinderForm } from "@/components/BinderForm";
 import { toast } from "sonner";
 
 const PERSON_OPTIONS = ["KALPAN", "JEEL", "VATSAL", "HARSH", "PRINCE", "FERIL"] as const;
 const DATE_FILTER_OPTIONS = ["ALL", "TODAY", "THIS_WEEK", "THIS_MONTH", "OVERDUE_PENDING"] as const;
 
+type BinderFormData = {
+  binder_date: string;
+  quote_person: string;
+  binder_person: string;
+  client_name: string;
+  company_name: string;
+  task: "PENDING" | "COMPLETED";
+  notes: string;
+};
+
 export default function BinderPipeline() {
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingBinder, setEditingBinder] = useState<any>(null);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [quotePersonFilter, setQuotePersonFilter] = useState("ALL");
   const [binderPersonFilter, setBinderPersonFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState<(typeof DATE_FILTER_OPTIONS)[number]>("ALL");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const [isAddingRow, setIsAddingRow] = useState(false);
+  const [savingRowId, setSavingRowId] = useState<number | null>(null);
+  const emptyForm: BinderFormData = {
+    binder_date: new Date().toISOString().split("T")[0],
+    quote_person: "",
+    binder_person: "",
+    client_name: "",
+    company_name: "",
+    task: "PENDING" as "PENDING" | "COMPLETED",
+    notes: "",
+  };
+  const [newRowData, setNewRowData] = useState(emptyForm);
+  const [rowDrafts, setRowDrafts] = useState<Record<number, BinderFormData>>({});
 
   const getTaskUi = (task: string) => {
     if (task === "COMPLETED") {
@@ -73,6 +93,25 @@ export default function BinderPipeline() {
     },
   });
 
+  const normalizeBinder = (binder: any): BinderFormData => ({
+    binder_date: binder.binder_date || new Date().toISOString().split("T")[0],
+    quote_person: String(binder.quote_person || "").toUpperCase(),
+    binder_person: String(binder.binder_person || "").toUpperCase(),
+    client_name: binder.client_name || "",
+    company_name: binder.company_name || "",
+    task: String(binder.task || "").toUpperCase() === "COMPLETED" ? "COMPLETED" : "PENDING",
+    notes: binder.notes || "",
+  });
+
+  useEffect(() => {
+    if (!binders) return;
+    const nextDrafts: Record<number, BinderFormData> = {};
+    binders.forEach((binder: any) => {
+      nextDrafts[binder.id] = normalizeBinder(binder);
+    });
+    setRowDrafts(nextDrafts);
+  }, [binders]);
+
   const handleExport = async () => {
     try {
       const response = await api.get('/api/binders/export/', {
@@ -81,25 +120,153 @@ export default function BinderPipeline() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'binders_export.csv');
+      link.setAttribute('download', 'binders_export.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
     } catch (error) {
-      console.error("Error exporting CSV", error);
-      toast.error("Failed to export CSV");
+      console.error("Error exporting Excel", error);
+      toast.error("Failed to export Excel");
     }
   };
 
-  const handleEdit = (binder: any) => {
-    setEditingBinder(binder);
-    setIsFormOpen(true);
+  const upsertBinderMutation = useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id?: number;
+      payload: BinderFormData;
+    }) => {
+      if (id) {
+        return api.patch(`/api/binders/${id}/`, payload);
+      }
+      return api.post("/api/binders/", payload);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["binders"] });
+      toast.success(variables.id ? "Binder updated successfully!" : "Binder created successfully!");
+    },
+    onError: (_, variables) => {
+      toast.error(variables.id ? "Failed to update binder." : "Failed to create binder.");
+    },
+    onSettled: () => {
+      setSavingRowId(null);
+    },
+  });
+
+  const saveNewRow = () => {
+    if (!newRowData.client_name.trim()) {
+      toast.error("Client Name is required.");
+      return;
+    }
+    setSavingRowId(0);
+    upsertBinderMutation.mutate({ payload: newRowData });
+    setNewRowData(emptyForm);
+    setIsAddingRow(false);
   };
 
-  const handleCloseForm = () => {
-    setIsFormOpen(false);
-    setEditingBinder(null);
+  const saveEditedRow = (id: number) => {
+    const payload = rowDrafts[id];
+    if (!payload?.client_name.trim()) {
+      toast.error("Client Name is required.");
+      return;
+    }
+    setSavingRowId(id);
+    upsertBinderMutation.mutate({
+      id,
+      payload,
+    });
   };
+
+  const isRowDirty = (binder: any) => {
+    const original = normalizeBinder(binder);
+    const draft = rowDrafts[binder.id];
+    if (!draft) return false;
+    return (
+      original.binder_date !== draft.binder_date ||
+      original.quote_person !== draft.quote_person ||
+      original.binder_person !== draft.binder_person ||
+      original.client_name !== draft.client_name ||
+      original.company_name !== draft.company_name ||
+      original.task !== draft.task ||
+      original.notes !== draft.notes
+    );
+  };
+
+  const renderPersonSelect = (
+    value: string,
+    onValueChange: (value: string) => void,
+    placeholder: string
+  ) => (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger className="h-8 text-xs min-w-[120px] rounded-none border-0 shadow-none focus:ring-0">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {PERSON_OPTIONS.map((person) => (
+          <SelectItem key={person} value={person}>
+            {person}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const renderTaskSelect = (
+    value: "PENDING" | "COMPLETED",
+    onValueChange: (value: "PENDING" | "COMPLETED") => void
+  ) => (
+    <Select value={value} onValueChange={(v) => onValueChange(v as "PENDING" | "COMPLETED")}>
+      <SelectTrigger className="h-8 text-xs min-w-[110px] rounded-none border-0 shadow-none focus:ring-0">
+        <SelectValue placeholder="Task" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="PENDING">Pending</SelectItem>
+        <SelectItem value="COMPLETED">Completed</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
+  const renderTextInput = (
+    value: string,
+    onChange: (value: string) => void,
+    placeholder: string,
+    required = false
+  ) => (
+    <Input
+      className="h-8 text-xs rounded-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      required={required}
+    />
+  );
+
+  const renderDateInput = (value: string, onChange: (value: string) => void) => (
+    <Input
+      className="h-8 text-xs rounded-none border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+      type="date"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+
+  const renderRowActions = (
+    onSave: () => void,
+    onCancel: () => void,
+    isSaving: boolean,
+    disabled = false
+  ) => (
+    <div className="flex items-center gap-1">
+      <Button size="sm" className="h-8 px-2 text-xs" onClick={onSave} disabled={isSaving || disabled}>
+        {isSaving ? "Saving..." : "Save"}
+      </Button>
+      <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={onCancel} disabled={isSaving}>
+        Cancel
+      </Button>
+    </div>
+  );
 
   const filteredBinders = useMemo(() => {
     if (!binders) return [];
@@ -196,9 +363,15 @@ export default function BinderPipeline() {
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleExport} className="gap-2">
             <Download className="h-4 w-4" />
-            Export CSV
+            Export Excel
           </Button>
-          <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+          <Button
+            onClick={() => {
+              setIsAddingRow(true);
+              setPage(1);
+            }}
+            className="gap-2"
+          >
             <Plus className="h-4 w-4" />
             Add Binder
           </Button>
@@ -264,51 +437,72 @@ export default function BinderPipeline() {
         <span className="font-medium text-foreground">{filteredBinders.length}</span> binders found
       </div>
 
-      <Card className="border shadow-sm overflow-hidden">
-        <Table>
+      <Card className="border shadow-sm overflow-hidden rounded-md">
+        <div className="overflow-x-auto">
+        <Table className="min-w-[1100px] border-collapse">
           <TableHeader>
-            <TableRow className="bg-secondary/50">
-              <TableHead>Effective Date of Policy</TableHead>
-              <TableHead>Quote Person</TableHead>
-              <TableHead>Binder Person</TableHead>
-              <TableHead>Client Name</TableHead>
-              <TableHead>Company Name</TableHead>
-              <TableHead>Task</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+            <TableRow className="bg-muted/70 border-b">
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Effective Date of Policy</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Quote Person</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Binder Person</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Client Name</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Company Name</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Task</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Notes</TableHead>
+              <TableHead className="h-9 px-2 w-[160px] font-semibold text-foreground">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center border-b">
                   <Spinner size="md" className="mx-auto" />
                 </TableCell>
               </TableRow>
-            ) : paginatedBinders.length > 0 ? (
+            ) : (
+              <>
+                {isAddingRow && (
+                  <TableRow className="border-b bg-yellow-50/40">
+                    <TableCell className="p-0 border-r">{renderDateInput(newRowData.binder_date, (value) => setNewRowData((prev) => ({ ...prev, binder_date: value })))}</TableCell>
+                    <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.quote_person, (value) => setNewRowData((prev) => ({ ...prev, quote_person: value })), "Quote person")}</TableCell>
+                    <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.binder_person, (value) => setNewRowData((prev) => ({ ...prev, binder_person: value })), "Binder person")}</TableCell>
+                    <TableCell className="p-0 border-r">{renderTextInput(newRowData.client_name, (value) => setNewRowData((prev) => ({ ...prev, client_name: value })), "Client name", true)}</TableCell>
+                    <TableCell className="p-0 border-r">{renderTextInput(newRowData.company_name, (value) => setNewRowData((prev) => ({ ...prev, company_name: value })), "Company name")}</TableCell>
+                    <TableCell className="p-0 border-r">{renderTaskSelect(newRowData.task, (value) => setNewRowData((prev) => ({ ...prev, task: value })))}</TableCell>
+                    <TableCell className="p-0 border-r">{renderTextInput(newRowData.notes, (value) => setNewRowData((prev) => ({ ...prev, notes: value })), "Notes")}</TableCell>
+                    <TableCell className="px-2 py-1">
+                      {renderRowActions(
+                        saveNewRow,
+                        () => {
+                          setIsAddingRow(false);
+                          setNewRowData(emptyForm);
+                        },
+                        savingRowId === 0
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {paginatedBinders.length > 0 ? (
               paginatedBinders.map((binder: any) => {
-                const taskUi = getTaskUi(binder.task);
+                const draft = rowDrafts[binder.id] || normalizeBinder(binder);
+                const taskUi = getTaskUi(draft.task);
+                const dirty = isRowDirty(binder);
                 return (
-                <TableRow key={binder.id}>
-                  <TableCell>
-                    {binder.binder_date
-                      ? format(new Date(binder.binder_date), "MMM d, yyyy")
-                      : ""}
-                  </TableCell>
-                  <TableCell>{binder.quote_person}</TableCell>
-                  <TableCell>{binder.binder_person}</TableCell>
-                  <TableCell className="font-medium">{binder.client_name}</TableCell>
-                  <TableCell>{binder.company_name}</TableCell>
-                  <TableCell>
-                    <span className={taskUi.className}>
-                      {taskUi.label}
-                    </span>
-                  </TableCell>
-                  <TableCell className="max-w-[250px] truncate" title={binder.notes}>{binder.notes}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEdit(binder)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                <TableRow key={binder.id} className="border-b">
+                  <TableCell className="p-0 border-r">{renderDateInput(draft.binder_date, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_date: value } })))}</TableCell>
+                  <TableCell className="p-0 border-r">{renderPersonSelect(draft.quote_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, quote_person: value } })), "Quote person")}</TableCell>
+                  <TableCell className="p-0 border-r">{renderPersonSelect(draft.binder_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_person: value } })), "Binder person")}</TableCell>
+                  <TableCell className="p-0 border-r font-medium">{renderTextInput(draft.client_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, client_name: value } })), "Client name", true)}</TableCell>
+                  <TableCell className="p-0 border-r">{renderTextInput(draft.company_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, company_name: value } })), "Company name")}</TableCell>
+                  <TableCell className="p-0 border-r"><span className="hidden">{taskUi.label}</span>{renderTaskSelect(draft.task, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, task: value } })))}</TableCell>
+                  <TableCell className="p-0 border-r max-w-[250px]">{renderTextInput(draft.notes, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, notes: value } })), "Notes")}</TableCell>
+                  <TableCell className="px-2 py-1">
+                    {renderRowActions(
+                      () => saveEditedRow(binder.id),
+                      () => setRowDrafts((prev) => ({ ...prev, [binder.id]: normalizeBinder(binder) })),
+                      savingRowId === binder.id,
+                      !dirty
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -317,14 +511,17 @@ export default function BinderPipeline() {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="h-24 text-center text-muted-foreground"
+                  className="h-24 text-center text-muted-foreground border-b"
                 >
                   No binders found for selected filters.
                 </TableCell>
               </TableRow>
             )}
+              </>
+            )}
           </TableBody>
         </Table>
+        </div>
       </Card>
 
       {filteredBinders.length > 0 && totalPages > 1 && (
@@ -357,14 +554,6 @@ export default function BinderPipeline() {
             </PaginationItem>
           </PaginationContent>
         </Pagination>
-      )}
-
-      {isFormOpen && (
-        <BinderForm
-          isOpen={isFormOpen}
-          onClose={handleCloseForm}
-          initialData={editingBinder}
-        />
       )}
     </div>
   );

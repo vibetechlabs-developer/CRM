@@ -15,5 +15,8 @@ psycopg[binary]>=3.2,<3.3
 # External HTTP integrations (WhatsApp service)
 requests>=2.32,<3.0
 
+# Excel export support
+openpyxl>=3.1,<4.0
+
 # Production WSGI server
 gunicorn>=22.0,<23.0

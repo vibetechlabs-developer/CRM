@@ -22,7 +22,14 @@ type DashboardStatsInput = {
   statusCounts?: StatusCount[];
   typeCounts?: TypeCount[];
   priorityCounts?: PriorityCount[];
-  monthlyTrend?: Array<{ month: string; tickets: number; completed: number }>;
+  monthlyTrend?: Array<{
+    month: string;
+    tickets: number;
+    completed: number;
+    newBusiness?: number;
+    renewal?: number;
+    changes?: number;
+  }>;
   recentTickets?: unknown[];
 };
 
@@ -118,6 +125,17 @@ export function useDashboardStats(statsData: DashboardStatsInput | null | undefi
 
   const recentTickets = useMemo(() => rawRecentTickets.map((t) => formatBackendTicket(t)), [rawRecentTickets]);
 
+  const typeMonthlyTrend = useMemo(
+    () =>
+      monthlyTrend.map((row) => ({
+        month: row.month,
+        newBusiness: row.newBusiness ?? 0,
+        renewal: row.renewal ?? 0,
+        changes: row.changes ?? 0,
+      })),
+    [monthlyTrend]
+  );
+
   const completionRate = totalTickets > 0 ? (completedTickets / totalTickets) * 100 : 0;
 
   return {
@@ -133,6 +151,7 @@ export function useDashboardStats(statsData: DashboardStatsInput | null | undefi
     typeData,
     priorityData,
     monthlyTrend,
+    typeMonthlyTrend,
     recentTickets,
     completionRate,
   };

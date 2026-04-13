@@ -114,6 +114,7 @@ const Dashboard = () => {
     typeData,
     priorityData,
     monthlyTrend,
+    typeMonthlyTrend,
     recentTickets,
     completionRate,
     totalTickets
@@ -172,6 +173,11 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Skeleton className="h-[300px] w-full rounded-xl" />
             <Skeleton className="h-[300px] w-full rounded-xl" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Skeleton className="h-[260px] w-full rounded-xl" />
+            <Skeleton className="h-[260px] w-full rounded-xl" />
+            <Skeleton className="h-[260px] w-full rounded-xl" />
           </div>
         </div>
       ) : (
@@ -381,6 +387,103 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         </ErrorBoundary>
+        </motion.div>
+      </div>
+
+      {/* Monthly trend by request type (separate charts) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary FallbackComponent={ChartFallback}>
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  New business (monthly)
+                </CardTitle>
+                <CardDescription className="text-xs">Tickets created as new policy</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={typeMonthlyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(214,20%,90%)", fontSize: 12 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="newBusiness"
+                      stroke="hsl(220, 70%, 50%)"
+                      strokeWidth={2.5}
+                      dot={{ fill: "hsl(220, 70%, 50%)", r: 3.5 }}
+                      name="New business"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary FallbackComponent={ChartFallback}>
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  Renewal (monthly)
+                </CardTitle>
+                <CardDescription className="text-xs">Renewal requests per month</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={typeMonthlyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(214,20%,90%)", fontSize: 12 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="renewal"
+                      stroke="hsl(168, 60%, 45%)"
+                      strokeWidth={2.5}
+                      dot={{ fill: "hsl(168, 60%, 45%)", r: 3.5 }}
+                      name="Renewal"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary FallbackComponent={ChartFallback}>
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  Changes (monthly)
+                </CardTitle>
+                <CardDescription className="text-xs">Changes, adjustments, and customer issues</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={typeMonthlyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(214,20%,90%)", fontSize: 12 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="changes"
+                      stroke="hsl(270, 60%, 55%)"
+                      strokeWidth={2.5}
+                      dot={{ fill: "hsl(270, 60%, 55%)", r: 3.5 }}
+                      name="Changes"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
         </motion.div>
       </div>
 
