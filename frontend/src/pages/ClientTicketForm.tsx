@@ -11,7 +11,7 @@ import CustomerIssueForm from "./CustomerIssueForm";
 const FORM_TITLES: Record<string, string> = {
   "new-policy": "New Policy",
   renewal: "Renewal",
-  adjustment: "Adjustment",
+  adjustment: "Changes Form",
   cancellation: "Cancellation",
   "customer-issue": "Customer Issue",
 };

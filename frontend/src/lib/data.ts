@@ -5,6 +5,7 @@ export type RequestType =
   | "New Policy"
   | "Renewal"
   | "Changes"
+  | "Changes Form"
   | "Adjustment"
   | "Cancellation"
   | "Customer Issue";
@@ -128,7 +129,7 @@ export const getTypeDisplay = (typeCode: TicketTypeCode): RequestType | string =
     case "CHANGES":
       return "Changes";
     case "ADJUSTMENT":
-      return "Adjustment";
+      return "Changes Form";
     case "CUSTOMER_ISSUE":
       return "Customer Issue";
     case "CANCELLATION":

@@ -29,7 +29,7 @@ const PERMISSION_OPTIONS = [
 const TICKET_TYPE_OPTIONS = [
   { code: "NEW", label: "New Policy" },
   { code: "RENEWAL", label: "Renewal" },
-  { code: "ADJUSTMENT", label: "Adjustment" },
+  { code: "ADJUSTMENT", label: "Changes Form" },
   { code: "CUSTOMER_ISSUE", label: "Customer Issue" },
   { code: "CANCELLATION", label: "Cancellation" },
 ] as const;

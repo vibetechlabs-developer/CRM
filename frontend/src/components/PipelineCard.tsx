@@ -38,6 +38,7 @@ const typeColors: Record<string, string> = {
   "Renewal": "text-accent border-accent/30 bg-accent/5",
   "Changes": "text-primary border-primary/30 bg-primary/5",
   "Adjustment": "text-purple-500 border-purple-500/30 bg-purple-500/5",
+  "Changes Form": "text-purple-500 border-purple-500/30 bg-purple-500/5",
   "Customer Issue": "text-destructive border-destructive/30 bg-destructive/5",
   "Cancellation": "text-destructive border-destructive/30 bg-destructive/5",
 };

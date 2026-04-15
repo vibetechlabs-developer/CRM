@@ -28,9 +28,9 @@ const requestTypes: {
     bg: "bg-accent/10 border-accent/20",
   },
   {
-    type: "Adjustment" as RequestType,
+    type: "Changes Form" as RequestType,
     path: "/forms/changes",
-    description: "Create an adjustment / change request ticket",
+    description: "Create a changes request ticket",
     icon: SlidersHorizontal,
     color: "text-purple-500",
     bg: "bg-purple-500/10 border-purple-500/20",

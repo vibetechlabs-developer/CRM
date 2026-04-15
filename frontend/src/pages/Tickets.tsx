@@ -48,6 +48,7 @@ const typeColors: Record<string, string> = {
   "New Policy": "text-primary border-primary/20 bg-primary/5",
   "Renewal": "text-accent border-accent/20 bg-accent/5",
   "Adjustment": "text-purple-500 border-purple-500/20 bg-purple-500/5",
+  "Changes Form": "text-purple-500 border-purple-500/20 bg-purple-500/5",
   "Cancellation": "text-destructive border-destructive/20 bg-destructive/5",
   "Changes": "text-purple-500 border-purple-500/20 bg-purple-500/5",
   "Customer Issue": "text-purple-500 border-purple-500/20 bg-purple-500/5",
@@ -79,7 +80,7 @@ const priorityStyles: Record<Priority, string> = {
 const requestTypeOptions = [
   { label: "New Policy", value: "NEW" },
   { label: "Renewal", value: "RENEWAL" },
-  { label: "Adjustment", value: "ADJUSTMENT" },
+  { label: "Changes Form", value: "ADJUSTMENT" },
   { label: "Customer Issue", value: "CUSTOMER_ISSUE" },
   { label: "Cancellation", value: "CANCELLATION" },
 ];

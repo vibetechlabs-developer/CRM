@@ -25,7 +25,7 @@ const getTypeDisplay = (backendCode: string) => {
     switch(backendCode) {
         case "NEW": return "New Policy";
         case "RENEWAL": return "Renewal";
-        case "ADJUSTMENT": return "Adjustment";
+        case "ADJUSTMENT": return "Changes Form";
         case "CANCELLATION": return "Cancellation";
         default: return "Unknown";
     }
