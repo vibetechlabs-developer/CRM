@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import api, { fetchAllPages } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Download, Plus, Search } from "lucide-react";
+import { Download, Plus, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,6 +34,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PERSON_OPTIONS = ["KALPAN", "JEEL", "VATSAL", "HARSH", "PRINCE", "FERIL"] as const;
 const DATE_FILTER_OPTIONS = ["ALL", "TODAY", "THIS_WEEK", "THIS_MONTH", "OVERDUE_PENDING"] as const;
@@ -58,6 +68,8 @@ export default function BinderPipeline() {
   const pageSize = 10;
   const [isAddingRow, setIsAddingRow] = useState(false);
   const [savingRowId, setSavingRowId] = useState<number | null>(null);
+  const [deletingBinderId, setDeletingBinderId] = useState<number | null>(null);
+  const [binderPendingDelete, setBinderPendingDelete] = useState<number | null>(null);
   const emptyForm: BinderFormData = {
     binder_date: new Date().toISOString().split("T")[0],
     quote_person: "",
@@ -69,21 +81,6 @@ export default function BinderPipeline() {
   };
   const [newRowData, setNewRowData] = useState(emptyForm);
   const [rowDrafts, setRowDrafts] = useState<Record<number, BinderFormData>>({});
-
-  const getTaskUi = (task: string) => {
-    if (task === "COMPLETED") {
-      return {
-        label: "Completed",
-        className:
-          "inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700",
-      };
-    }
-    return {
-      label: "Pending",
-      className:
-        "inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700",
-    };
-  };
 
   const { data: binders, isLoading } = useQuery({
     queryKey: ["binders"],
@@ -129,6 +126,23 @@ export default function BinderPipeline() {
       toast.error("Failed to export Excel");
     }
   };
+
+  const deleteBinderMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/api/binders/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["binders"] });
+      toast.success("Binder deleted.");
+      setBinderPendingDelete(null);
+    },
+    onError: () => {
+      toast.error("Failed to delete binder.");
+    },
+    onSettled: () => {
+      setDeletingBinderId(null);
+    },
+  });
 
   const upsertBinderMutation = useMutation({
     mutationFn: async ({
@@ -216,17 +230,27 @@ export default function BinderPipeline() {
   const renderTaskSelect = (
     value: "PENDING" | "COMPLETED",
     onValueChange: (value: "PENDING" | "COMPLETED") => void
-  ) => (
-    <Select value={value} onValueChange={(v) => onValueChange(v as "PENDING" | "COMPLETED")}>
-      <SelectTrigger className="h-8 text-xs min-w-[110px] rounded-none border-0 shadow-none focus:ring-0">
-        <SelectValue placeholder="Task" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="PENDING">Pending</SelectItem>
-        <SelectItem value="COMPLETED">Completed</SelectItem>
-      </SelectContent>
-    </Select>
-  );
+  ) => {
+    const isDone = value === "COMPLETED";
+    return (
+      <Select value={value} onValueChange={(v) => onValueChange(v as "PENDING" | "COMPLETED")}>
+        <SelectTrigger
+          className={cn(
+            "h-8 text-xs min-w-[110px] rounded-md border shadow-none focus:ring-0 data-[state=open]:ring-0",
+            isDone
+              ? "border-emerald-300 bg-emerald-50 font-medium text-emerald-800 hover:bg-emerald-100/80"
+              : "border-amber-200 bg-amber-50/80 text-amber-900 hover:bg-amber-50"
+          )}
+        >
+          <SelectValue placeholder="Task" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="PENDING">Pending</SelectItem>
+          <SelectItem value="COMPLETED">Completed</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  };
 
   const renderTextInput = (
     value: string,
@@ -252,14 +276,13 @@ export default function BinderPipeline() {
     />
   );
 
-  const renderRowActions = (
+  const renderNewRowActions = (
     onSave: () => void,
     onCancel: () => void,
-    isSaving: boolean,
-    disabled = false
+    isSaving: boolean
   ) => (
-    <div className="flex items-center gap-1">
-      <Button size="sm" className="h-8 px-2 text-xs" onClick={onSave} disabled={isSaving || disabled}>
+    <div className="flex items-center gap-1 flex-wrap">
+      <Button size="sm" className="h-8 px-2 text-xs" onClick={onSave} disabled={isSaving}>
         {isSaving ? "Saving..." : "Save"}
       </Button>
       <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={onCancel} disabled={isSaving}>
@@ -267,6 +290,36 @@ export default function BinderPipeline() {
       </Button>
     </div>
   );
+
+  const renderExistingRowActions = (
+    binderId: number,
+    onSave: () => void,
+    onCancel: () => void,
+    isSaving: boolean,
+    saveDisabled: boolean
+  ) => {
+    const isDeleting = deletingBinderId === binderId;
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        <Button size="sm" className="h-8 px-2 text-xs" onClick={onSave} disabled={isSaving || saveDisabled}>
+          {isSaving ? "Saving..." : "Save"}
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={onCancel} disabled={isSaving}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="h-8 px-2 text-xs gap-1"
+          onClick={() => setBinderPendingDelete(binderId)}
+          disabled={isSaving || isDeleting}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </Button>
+      </div>
+    );
+  };
 
   const filteredBinders = useMemo(() => {
     if (!binders) return [];
@@ -449,7 +502,7 @@ export default function BinderPipeline() {
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Company Name</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Task</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Notes</TableHead>
-              <TableHead className="h-9 px-2 w-[160px] font-semibold text-foreground">Actions</TableHead>
+              <TableHead className="h-9 px-2 w-[220px] font-semibold text-foreground">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -468,10 +521,17 @@ export default function BinderPipeline() {
                     <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.binder_person, (value) => setNewRowData((prev) => ({ ...prev, binder_person: value })), "Binder person")}</TableCell>
                     <TableCell className="p-0 border-r">{renderTextInput(newRowData.client_name, (value) => setNewRowData((prev) => ({ ...prev, client_name: value })), "Client name", true)}</TableCell>
                     <TableCell className="p-0 border-r">{renderTextInput(newRowData.company_name, (value) => setNewRowData((prev) => ({ ...prev, company_name: value })), "Company name")}</TableCell>
-                    <TableCell className="p-0 border-r">{renderTaskSelect(newRowData.task, (value) => setNewRowData((prev) => ({ ...prev, task: value })))}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "p-1 border-r align-middle",
+                        newRowData.task === "COMPLETED" && "bg-emerald-50/90"
+                      )}
+                    >
+                      {renderTaskSelect(newRowData.task, (value) => setNewRowData((prev) => ({ ...prev, task: value })))}
+                    </TableCell>
                     <TableCell className="p-0 border-r">{renderTextInput(newRowData.notes, (value) => setNewRowData((prev) => ({ ...prev, notes: value })), "Notes")}</TableCell>
                     <TableCell className="px-2 py-1">
-                      {renderRowActions(
+                      {renderNewRowActions(
                         saveNewRow,
                         () => {
                           setIsAddingRow(false);
@@ -485,8 +545,8 @@ export default function BinderPipeline() {
                 {paginatedBinders.length > 0 ? (
               paginatedBinders.map((binder: any) => {
                 const draft = rowDrafts[binder.id] || normalizeBinder(binder);
-                const taskUi = getTaskUi(draft.task);
                 const dirty = isRowDirty(binder);
+                const taskDone = draft.task === "COMPLETED";
                 return (
                 <TableRow key={binder.id} className="border-b">
                   <TableCell className="p-0 border-r">{renderDateInput(draft.binder_date, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_date: value } })))}</TableCell>
@@ -494,10 +554,20 @@ export default function BinderPipeline() {
                   <TableCell className="p-0 border-r">{renderPersonSelect(draft.binder_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_person: value } })), "Binder person")}</TableCell>
                   <TableCell className="p-0 border-r font-medium">{renderTextInput(draft.client_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, client_name: value } })), "Client name", true)}</TableCell>
                   <TableCell className="p-0 border-r">{renderTextInput(draft.company_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, company_name: value } })), "Company name")}</TableCell>
-                  <TableCell className="p-0 border-r"><span className="hidden">{taskUi.label}</span>{renderTaskSelect(draft.task, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, task: value } })))}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "p-1 border-r align-middle",
+                      taskDone && "bg-emerald-50/90"
+                    )}
+                  >
+                    {renderTaskSelect(draft.task, (value) =>
+                      setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, task: value } }))
+                    )}
+                  </TableCell>
                   <TableCell className="p-0 border-r max-w-[250px]">{renderTextInput(draft.notes, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, notes: value } })), "Notes")}</TableCell>
                   <TableCell className="px-2 py-1">
-                    {renderRowActions(
+                    {renderExistingRowActions(
+                      binder.id,
                       () => saveEditedRow(binder.id),
                       () => setRowDrafts((prev) => ({ ...prev, [binder.id]: normalizeBinder(binder) })),
                       savingRowId === binder.id,
@@ -555,6 +625,32 @@ export default function BinderPipeline() {
           </PaginationContent>
         </Pagination>
       )}
+
+      <AlertDialog open={binderPendingDelete !== null} onOpenChange={(open) => !open && setBinderPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this binder?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the row from the binder pipeline. You cannot undo this action.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBinderId !== null}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingBinderId !== null}
+              onClick={() => {
+                if (binderPendingDelete == null) return;
+                setDeletingBinderId(binderPendingDelete);
+                deleteBinderMutation.mutate(binderPendingDelete);
+              }}
+            >
+              {deletingBinderId !== null ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

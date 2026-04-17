@@ -118,7 +118,7 @@ const App = () => (
               <Route path="/forms" element={<ClientFormsLanding />} />
               <Route path="/client/forms" element={<ClientFormsLanding />} />
               <Route path="/forms/new-business" element={<NewBusinessForm />} />
-              <Route path="/forms/new-buisness" element={<NewBusinessForm />} />
+              <Route path="/forms/new-buisness" element={<Navigate to="/forms/new-business" replace />} />
               <Route path="/forms/renewal" element={<RenewalRequestForm />} />
               <Route path="/forms/changes" element={<PolicyChangeForm />} />
               <Route path="/forms/cancellation" element={<CancellationForm />} />

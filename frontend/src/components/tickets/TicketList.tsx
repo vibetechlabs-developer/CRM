@@ -190,10 +190,24 @@ export function TicketList({
                 </td>
                 <td className="p-4">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => onView(ticket)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => onView(ticket)}
+                      aria-label={`View ticket ${ticket.ticket_no}`}
+                      title={`View ticket ${ticket.ticket_no}`}
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => onEdit(ticket)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => onEdit(ticket)}
+                      aria-label={`Edit ticket ${ticket.ticket_no}`}
+                      title={`Edit ticket ${ticket.ticket_no}`}
+                    >
                       <Edit2 className="h-4 w-4" />
                     </Button>
                   </div>

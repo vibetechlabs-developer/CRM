@@ -538,10 +538,24 @@ const Clients = () => {
                   <td className="p-4 text-sm text-muted-foreground hidden md:table-cell">{client.addedDate}</td>
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openAction(client, "view")}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => openAction(client, "view")}
+                        aria-label={`View client ${client.name}`}
+                        title={`View client ${client.name}`}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => openAction(client, "edit")}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => openAction(client, "edit")}
+                        aria-label={`Edit client ${client.name}`}
+                        title={`Edit client ${client.name}`}
+                      >
                         <Edit2 className="h-4 w-4" />
                       </Button>
                     </div>
