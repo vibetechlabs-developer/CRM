@@ -29,7 +29,14 @@ type Props = {
   onAddNote: () => void;
 
   onSaveAdminAssignment: (ticketId: number, assignedToId: number | null) => void;
-  onSaveEdit: (payload: { id: number; status: PipelineStage | string; priority: Priority | string; insuranceType: string; assignedToId: number | null }) => void;
+  onSaveEdit: (payload: {
+    id: number;
+    status: PipelineStage | string;
+    priority: Priority | string;
+    insuranceType: string;
+    assignedToId: number | null;
+    requestType: string;
+  }) => void;
   isSaving: boolean;
   onDiscard?: (ticketId: number) => void;
   isDiscarding?: boolean;
@@ -71,6 +78,14 @@ function parseDetails(details: any) {
 
   return result;
 }
+
+const editableRequestTypes = [
+  "New Policy",
+  "Renewal",
+  "Changes Form",
+  "Customer Issue",
+  "Cancellation",
+];
 
 export function TicketActionModals({
   modalType,
@@ -333,6 +348,32 @@ export function TicketActionModals({
 
                 {userRole === "ADMIN" && (
                   <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Request Type</Label>
+                    <Select
+                      value={String(selectedTicket.type)}
+                      onValueChange={(val) => {
+                        setSelectedTicket((prev) => {
+                          if (!prev) return prev;
+                          return { ...prev, type: val };
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select request type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {editableRequestTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {userRole === "ADMIN" && (
+                  <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Assigned Agent</Label>
                     <Select
                       value={selectedTicket.assignedToId ? String(selectedTicket.assignedToId) : "unassigned"}
@@ -378,6 +419,7 @@ export function TicketActionModals({
                   status: selectedTicket.stage,
                   priority: selectedTicket.priority,
                   insuranceType: selectedTicket.insuranceType,
+                  requestType: String(selectedTicket.type),
                   assignedToId: userRole === "ADMIN" ? selectedTicket.assignedToId : null,
                 });
               }}

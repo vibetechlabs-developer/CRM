@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning } from "lucide-react";
+import { ArrowLeft, FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RequestType } from "@/lib/data";
 
@@ -43,6 +43,14 @@ const requestTypes: {
     icon: XCircle,
     color: "text-destructive",
     bg: "bg-destructive/10 border-destructive/20",
+  },
+  {
+    type: "Quick Manual" as RequestType,
+    path: "/new-ticket/quick-manual",
+    description: "Create ticket quickly from existing client without full form",
+    icon: Zap,
+    color: "text-emerald-600",
+    bg: "bg-emerald-100 border-emerald-200",
   },
   {
     type: "Customer Issue" as RequestType,

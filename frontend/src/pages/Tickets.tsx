@@ -85,6 +85,18 @@ const requestTypeOptions = [
   { label: "Cancellation", value: "CANCELLATION" },
 ];
 
+const CUSTOMER_ISSUE_MARKER = "[Form: Customer Issue]";
+
+function mapRequestTypeDisplayToBackend(typeDisplay: string) {
+  const normalized = String(typeDisplay || "").trim().toLowerCase();
+  if (normalized === "new policy") return "NEW";
+  if (normalized === "renewal") return "RENEWAL";
+  if (normalized === "changes form" || normalized === "changes" || normalized === "adjustment") return "CHANGES";
+  if (normalized === "customer issue") return "CHANGES";
+  if (normalized === "cancellation") return "CANCELLATION";
+  return null;
+}
+
 const Tickets = () => {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -463,7 +475,7 @@ const Tickets = () => {
             data: { assigned_to: assignedToId },
           })
         }
-        onSaveEdit={({ id, status, priority, insuranceType, assignedToId }) => {
+        onSaveEdit={({ id, status, priority, insuranceType, assignedToId, requestType }) => {
           const ticket = formattedTickets.find((t) => t.id === id);
           const isStageChanged = !!ticket && String(ticket.stage) !== String(status);
 
@@ -481,12 +493,22 @@ const Tickets = () => {
             return;
           }
 
+          const backendTicketType = mapRequestTypeDisplayToBackend(requestType);
+          const originalNotes = String(ticket?.additionalNotes || "");
+          const baseNotes = originalNotes.replace(CUSTOMER_ISSUE_MARKER, "").trim();
+          const nextAdditionalNotes =
+            String(requestType).trim() === "Customer Issue"
+              ? [baseNotes, CUSTOMER_ISSUE_MARKER].filter(Boolean).join("\n")
+              : baseNotes;
+
           updateTicketMutation.mutate({
             id,
             data: {
               status: getStatusBackendCode(status),
               priority: getPriorityBackendCode(priority),
               insurance_type: insuranceType,
+              ...(backendTicketType ? { ticket_type: backendTicketType } : {}),
+              additional_notes: nextAdditionalNotes,
               ...(user?.role === "ADMIN" ? { assigned_to: assignedToId } : {}),
             },
           });

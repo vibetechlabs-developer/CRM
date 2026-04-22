@@ -44,6 +44,7 @@ const CustomerIssueForm = lazy(() => import("./pages/CustomerIssueForm"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const NewBusinessForm = lazy(() => import("./pages/NewBusinessForm"));
 const ClientFormsLanding = lazy(() => import("./pages/ClientFormsLanding"));
+const QuickManualTicket = lazy(() => import("./pages/QuickManualTicket"));
 import ScrollToTop from "./components/ScrollToTop";
 import { GlobalAuthListener } from "@/components/GlobalAuthListener";
 
@@ -80,6 +81,7 @@ function ProtectedRoutes() {
             <Route path="/binder-pipeline" element={<BinderPipeline />} />
             <Route path="/daily-planner" element={<DailyPlanner />} />
             <Route path="/new-ticket" element={<NewTicket />} />
+            <Route path="/new-ticket/quick-manual" element={<QuickManualTicket />} />
             <Route path="/insurance-form/manual" element={<InsuranceFormManual />} />
             <Route path="/discarded-leads" element={<DiscardedLeads />} />
             <Route path="/notifications" element={<Notifications />} />
