@@ -2,8 +2,11 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.utils import timezone
+from django.db.models import Exists, OuterRef
 from datetime import timedelta
 from common.permissions import DenyDeleteForManager
+
+from tickets.models import Ticket
 
 from .models import Client
 from .serializers import ClientSerializer
@@ -29,11 +32,26 @@ class ClientViewSet(ModelViewSet):
         user = self.request.user
         role = getattr(user, "role", None)
 
-        # AGENT role: only show clients linked to tickets assigned to this agent
+        unassigned_pool = (self.request.query_params.get("unassigned_pool") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        # AGENT role: default = clients linked to tickets assigned to this agent.
+        # Optional `unassigned_pool=1`: clients that have no tickets yet (Quick Manual / new client flow).
+        # As soon as any ticket exists for that client, they are excluded from this list.
         if role == "AGENT":
-            qs = Client.objects.filter(
-                tickets__assigned_to=user
-            ).distinct()
+            if unassigned_pool:
+                has_any_ticket = Ticket.objects.filter(client_id=OuterRef("pk"))
+                qs = (
+                    Client.objects.annotate(_has_any_ticket=Exists(has_any_ticket))
+                    .filter(_has_any_ticket=False)
+                )
+            else:
+                qs = Client.objects.filter(
+                    tickets__assigned_to=user
+                ).distinct()
         else:
             # ADMIN and MANAGER see all clients
             qs = Client.objects.all()

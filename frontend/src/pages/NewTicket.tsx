@@ -47,7 +47,7 @@ const requestTypes: {
   {
     type: "Quick Manual" as RequestType,
     path: "/new-ticket/quick-manual",
-    description: "Create ticket quickly from existing client without full form",
+    description: "Add a new client and create a ticket without the full insurance form",
     icon: Zap,
     color: "text-emerald-600",
     bg: "bg-emerald-100 border-emerald-200",

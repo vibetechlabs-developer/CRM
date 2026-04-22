@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, ChevronsUpDown, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api, { fetchAllPages } from "@/lib/api";
 import { ensureCsrfCookie } from "@/lib/csrf";
@@ -16,28 +16,61 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 const CUSTOMER_ISSUE_MARKER = "[Form: Customer Issue]";
 
-const quickTicketSchema = z.object({
-  client: z.string().min(1, "Please select a client"),
-  ticket_type: z.enum(["NEW", "RENEWAL", "CHANGES", "CUSTOMER_ISSUE", "CANCELLATION"]),
-  insurance_type: z.string().min(1, "Insurance type is required"),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]),
-  assigned_to: z.string().optional(),
-  additional_notes: z.string().optional(),
-});
+function validatePhoneInput(phone: string): string | null {
+  const raw = (phone ?? "").trim();
+  if (!raw) return "Phone number is required.";
+  if (raw.includes("|")) return "Phone number must not contain '|'.";
+  const digitsOnly = raw.replace(/\D/g, "");
+  if (!digitsOnly) return "Enter a valid phone number.";
+  if (digitsOnly.length < 9 || digitsOnly.length > 15) {
+    return "Phone number must be between 9 and 15 digits.";
+  }
+  return null;
+}
+
+function formatPhoneForDisplay(phone: string): string {
+  const digitsOnly = (phone ?? "").replace(/\D/g, "").slice(0, 15);
+  if (!digitsOnly) return "";
+  if (digitsOnly.length <= 3) return `(${digitsOnly}`;
+  return `(${digitsOnly.slice(0, 3)})${digitsOnly.slice(3)}`;
+}
+
+const quickTicketSchema = z
+  .object({
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    occupation: z.string().optional(),
+    address: z.string().optional(),
+    ticket_type: z.enum(["NEW", "RENEWAL", "CHANGES", "CUSTOMER_ISSUE", "CANCELLATION"]),
+    insurance_type: z.string().min(1, "Insurance type is required"),
+    priority: z.enum(["LOW", "MEDIUM", "HIGH"]),
+    assigned_to: z.string().optional(),
+    additional_notes: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.first_name?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "First name is required", path: ["first_name"] });
+    }
+    if (!data.last_name?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Last name is required", path: ["last_name"] });
+    }
+    if (!data.email?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Email is required", path: ["email"] });
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid email address", path: ["email"] });
+    }
+    const phoneErr = validatePhoneInput(data.phone || "");
+    if (phoneErr) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: phoneErr, path: ["phone"] });
+    }
+  });
 
 type QuickTicketValues = z.infer<typeof quickTicketSchema>;
-
-type ClientRow = {
-  id: number;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  client_id?: string;
-};
 
 type UserRow = {
   id: number;
@@ -57,11 +90,9 @@ const requestTypeOptions = [
 
 const QuickManualTicket = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [clientPickerOpen, setClientPickerOpen] = useState(false);
-  const [clientSearch, setClientSearch] = useState("");
-  const clientPickerRef = useRef<HTMLDivElement | null>(null);
 
   const role = String(user?.role ?? "").toUpperCase();
   const isAdmin = role === "ADMIN";
@@ -71,7 +102,12 @@ const QuickManualTicket = () => {
   const form = useForm<QuickTicketValues>({
     resolver: zodResolver(quickTicketSchema),
     defaultValues: {
-      client: "",
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      occupation: "",
+      address: "",
       ticket_type: "NEW",
       insurance_type: "",
       priority: "MEDIUM",
@@ -87,15 +123,6 @@ const QuickManualTicket = () => {
     }
   }, [canUseQuickManual, isAgent, user?.id, form]);
 
-  const { data: clients = [], isLoading: clientsLoading } = useQuery({
-    queryKey: ["quick-ticket-clients"],
-    enabled: canUseQuickManual,
-    queryFn: async () => {
-      const allClients = await fetchAllPages("/api/clients/");
-      return (Array.isArray(allClients) ? allClients : []) as ClientRow[];
-    },
-  });
-
   const { data: users = [] } = useQuery({
     queryKey: ["quick-ticket-users"],
     enabled: isAdmin,
@@ -110,39 +137,25 @@ const QuickManualTicket = () => {
     [users]
   );
 
-  const selectedClientId = form.watch("client");
-  const selectedClientLabel = useMemo(() => {
-    const selected = clients.find((client) => String(client.id) === String(selectedClientId));
-    if (!selected) return "";
-    return `${selected.first_name || ""} ${selected.last_name || ""}`.trim() || selected.email || selected.client_id || `Client ${selected.id}`;
-  }, [clients, selectedClientId]);
-
-  const filteredClients = useMemo(() => {
-    const q = clientSearch.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter((client) => {
-      const label = `${client.first_name || ""} ${client.last_name || ""}`.trim();
-      const email = client.email || "";
-      const code = client.client_id || "";
-      return `${label} ${email} ${code}`.toLowerCase().includes(q);
-    });
-  }, [clients, clientSearch]);
-
-  useEffect(() => {
-    const onOutsideClick = (event: MouseEvent) => {
-      if (!clientPickerRef.current) return;
-      if (!clientPickerRef.current.contains(event.target as Node)) {
-        setClientPickerOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onOutsideClick);
-    return () => document.removeEventListener("mousedown", onOutsideClick);
-  }, []);
-
   const onSubmit = async (values: QuickTicketValues) => {
     try {
       setIsSubmitting(true);
       await ensureCsrfCookie();
+
+      const createRes = await api.post("/api/clients/", {
+        first_name: values.first_name!.trim(),
+        last_name: values.last_name!.trim(),
+        email: values.email!.trim(),
+        phone: values.phone!.trim(),
+        occupation: (values.occupation || "").trim(),
+        address: (values.address || "").trim(),
+      });
+      const clientId = Number(createRes.data?.id);
+      if (!clientId) {
+        toast.error("Client was created but no id was returned.");
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ["clients"], exact: false });
 
       const isCustomerIssue = values.ticket_type === "CUSTOMER_ISSUE";
       const backendTicketType = isCustomerIssue ? "CHANGES" : values.ticket_type;
@@ -152,7 +165,7 @@ const QuickManualTicket = () => {
         : cleanNotes;
 
       const payload = {
-        client: Number(values.client),
+        client: clientId,
         ticket_type: backendTicketType,
         insurance_type: values.insurance_type,
         priority: values.priority,
@@ -194,7 +207,7 @@ const QuickManualTicket = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Quick Manual Ticket</h1>
-          <p className="text-sm text-muted-foreground mt-1">Create ticket from existing client without filling full form.</p>
+          <p className="text-sm text-muted-foreground mt-1">Add a new client and create a ticket in one step.</p>
         </div>
         <Button variant="ghost" onClick={() => navigate("/new-ticket")} className="gap-2">
           <ArrowLeft className="h-4 w-4" /> Back
@@ -204,84 +217,100 @@ const QuickManualTicket = () => {
       <Card className="border shadow-sm">
         <CardHeader>
           <CardTitle>Create Ticket</CardTitle>
-          <CardDescription>Select client and basic details only.</CardDescription>
+          <CardDescription>New client details and ticket basics.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="client"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Client</FormLabel>
-                    <div className="relative" ref={clientPickerRef}>
-                      <FormControl>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          role="combobox"
-                          disabled={clientsLoading}
-                          onClick={() => setClientPickerOpen((prev) => !prev)}
-                          className={cn("w-full justify-between font-normal", !field.value && "text-muted-foreground")}
-                        >
-                          {clientsLoading ? "Loading clients..." : selectedClientLabel || "Select client"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
+              <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                <p className="text-sm font-medium">Client details</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="first_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="First name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="last_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Last name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="name@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="(000) 000-0000"
+                            {...field}
+                            onChange={(e) => field.onChange(formatPhoneForDisplay(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="occupation"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Occupation</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Optional" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Street, city, postal…" rows={3} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
 
-                      {clientPickerOpen && (
-                        <div className="absolute z-50 mt-2 w-full rounded-md border bg-popover shadow-md">
-                          <div className="border-b p-2">
-                            <div className="relative">
-                              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                              <Input
-                                value={clientSearch}
-                                onChange={(e) => setClientSearch(e.target.value)}
-                                placeholder="Search by name, email or client id..."
-                                className="pl-9"
-                                autoFocus
-                              />
-                            </div>
-                          </div>
-                          <div className="max-h-64 overflow-y-auto p-1">
-                            {filteredClients.length === 0 ? (
-                              <p className="p-2 text-sm text-muted-foreground">No client found.</p>
-                            ) : (
-                              filteredClients.map((client) => {
-                                const label =
-                                  `${client.first_name || ""} ${client.last_name || ""}`.trim() ||
-                                  client.email ||
-                                  client.client_id ||
-                                  `Client ${client.id}`;
-                                return (
-                                  <button
-                                    key={client.id}
-                                    type="button"
-                                    className={cn(
-                                      "flex w-full items-center rounded-sm px-3 py-2 text-left text-sm hover:bg-accent",
-                                      String(field.value) === String(client.id) && "bg-accent"
-                                    )}
-                                    onClick={() => {
-                                      field.onChange(String(client.id));
-                                      setClientPickerOpen(false);
-                                    }}
-                                  >
-                                    {label}
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="ticket_type"
