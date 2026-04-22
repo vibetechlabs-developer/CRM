@@ -60,6 +60,7 @@ const parseTicketTypeCodes = (raw?: string): string[] => {
  
 const formatUser = (user: any) => ({
    id: user.id,
+   username: user.username,
    name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username,
    email: user.email,
    role: user.role === "ADMIN" ? "Admin" : (user.role === "MANAGER" ? "Manager" : "Agent"),
@@ -147,8 +148,10 @@ const UserControl = () => {
   });
   const [editForm, setEditForm] = useState({
     fullName: "",
+    username: "",
     email: "",
     role: "Agent" as "Admin" | "Manager" | "Agent",
+    temporaryPassword: "",
     ticketTypesAll: true,
     ticketTypeCodes: [] as string[],
   });
@@ -218,6 +221,7 @@ const UserControl = () => {
         email: editForm.email.trim(),
         role: roleCode,
         assigned_ticket_types: editForm.ticketTypesAll ? "" : editForm.ticketTypeCodes.join(","),
+        ...(editForm.temporaryPassword.trim() ? { password: editForm.temporaryPassword.trim() } : {}),
       };
       const res = await api.patch(`/api/users/${selectedUser.id}/`, payload);
       return res.data;
@@ -289,8 +293,10 @@ const UserControl = () => {
     const codes = parseTicketTypeCodes(raw);
     setEditForm({
       fullName: selectedUser.name || "",
+      username: selectedUser.username || "",
       email: selectedUser.email || "",
       role: (selectedUser.role || "Agent") as "Admin" | "Manager" | "Agent",
+      temporaryPassword: "",
       ticketTypesAll: codes.length === 0,
       ticketTypeCodes: codes,
     });
@@ -379,6 +385,7 @@ const UserControl = () => {
                       </Avatar>
                       <div>
                         <p className="text-sm font-semibold">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">@{user.username}</p>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                           <Mail className="h-3 w-3" />
                           {user.email}
@@ -609,6 +616,7 @@ const UserControl = () => {
                 </Avatar>
                 <div>
                   <p className="font-semibold">{selectedUser.name}</p>
+                  <p className="text-xs text-muted-foreground">@{selectedUser.username}</p>
                   <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
                 </div>
                 <Badge variant={selectedUser.role === "Admin" ? "destructive" : "default"} className="ml-auto">
@@ -627,6 +635,10 @@ const UserControl = () => {
                     />
                   </div>
                   <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Username</Label>
+                    <Input value={editForm.username} disabled />
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Email</Label>
                     <Input
                       value={editForm.email}
@@ -634,6 +646,18 @@ const UserControl = () => {
                       placeholder="Enter email"
                       type="email"
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Set Temporary Password (Optional)</Label>
+                    <Input
+                      value={editForm.temporaryPassword}
+                      onChange={(e) => setEditForm((s) => ({ ...s, temporaryPassword: e.target.value }))}
+                      placeholder="Leave blank to keep current password"
+                      type="password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Existing password cannot be viewed. You can set a new temporary password here.
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium">Role</Label>

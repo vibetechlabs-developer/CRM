@@ -63,7 +63,10 @@ const QuickManualTicket = () => {
   const [clientSearch, setClientSearch] = useState("");
   const clientPickerRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdmin = String(user?.role ?? "").toUpperCase() === "ADMIN";
+  const role = String(user?.role ?? "").toUpperCase();
+  const isAdmin = role === "ADMIN";
+  const isAgent = role === "AGENT";
+  const canUseQuickManual = isAdmin || isAgent;
 
   const form = useForm<QuickTicketValues>({
     resolver: zodResolver(quickTicketSchema),
@@ -77,9 +80,16 @@ const QuickManualTicket = () => {
     },
   });
 
+  useEffect(() => {
+    if (!canUseQuickManual) return;
+    if (isAgent && user?.id) {
+      form.setValue("assigned_to", String(user.id));
+    }
+  }, [canUseQuickManual, isAgent, user?.id, form]);
+
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["quick-ticket-clients"],
-    enabled: isAdmin,
+    enabled: canUseQuickManual,
     queryFn: async () => {
       const allClients = await fetchAllPages("/api/clients/");
       return (Array.isArray(allClients) ? allClients : []) as ClientRow[];
@@ -163,7 +173,7 @@ const QuickManualTicket = () => {
     }
   };
 
-  if (!isAdmin) {
+  if (!canUseQuickManual) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
         <Button variant="ghost" onClick={() => navigate("/new-ticket")} className="gap-2">
@@ -172,7 +182,7 @@ const QuickManualTicket = () => {
         <Card>
           <CardHeader>
             <CardTitle>Access Restricted</CardTitle>
-            <CardDescription>Quick Manual Ticket is available only for Admin users.</CardDescription>
+            <CardDescription>Quick Manual Ticket is available only for Admin and Agent users.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -341,21 +351,27 @@ const QuickManualTicket = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Assign To</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    {isAdmin ? (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select agent (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {assignableUsers.map((u) => (
+                            <SelectItem key={u.id} value={String(u.id)}>
+                              {`${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select agent (optional)" />
-                        </SelectTrigger>
+                        <Input value={user?.name || user?.email || "Self"} disabled />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {assignableUsers.map((u) => (
-                          <SelectItem key={u.id} value={String(u.id)}>
-                            {`${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
