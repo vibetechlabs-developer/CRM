@@ -475,6 +475,14 @@ class BinderViewSet(ModelViewSet):
         qs = Binder.objects.select_related("binder_created_by").all().order_by('binder_date')
         return qs
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        # Prevent intermediary caches from serving user-scoped stale binder lists.
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
+        response["Expires"] = "0"
+        return response
+
     def perform_create(self, serializer):
         serializer.save(binder_created_by=self.request.user)
 

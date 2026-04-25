@@ -86,7 +86,7 @@ export default function BinderPipeline() {
     queryKey: ["binders"],
     queryFn: async () => {
       // By default the backend sorts ascending by binder_date
-      return await fetchAllPages("/api/binders/");
+      return await fetchAllPages(`/api/binders/?_ts=${Date.now()}`);
     },
   });
 
