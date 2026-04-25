@@ -492,13 +492,13 @@ export default function BinderPipeline() {
 
       <Card className="border shadow-sm overflow-hidden rounded-md">
         <div className="overflow-x-auto">
-        <Table className="min-w-[1100px] border-collapse">
+        <Table className="min-w-[1220px] border-collapse">
           <TableHeader>
             <TableRow className="bg-muted/70 border-b">
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Effective Date of Policy</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Quote Person</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Binder Person</TableHead>
-              <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Client Name</TableHead>
+              <TableHead className="h-9 px-2 border-r font-semibold text-foreground min-w-[260px]">Client Name</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Company Name</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Task</TableHead>
               <TableHead className="h-9 px-2 border-r font-semibold text-foreground">Notes</TableHead>
@@ -519,7 +519,7 @@ export default function BinderPipeline() {
                     <TableCell className="p-0 border-r">{renderDateInput(newRowData.binder_date, (value) => setNewRowData((prev) => ({ ...prev, binder_date: value })))}</TableCell>
                     <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.quote_person, (value) => setNewRowData((prev) => ({ ...prev, quote_person: value })), "Quote person")}</TableCell>
                     <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.binder_person, (value) => setNewRowData((prev) => ({ ...prev, binder_person: value })), "Binder person")}</TableCell>
-                    <TableCell className="p-0 border-r">{renderTextInput(newRowData.client_name, (value) => setNewRowData((prev) => ({ ...prev, client_name: value })), "Client name", true)}</TableCell>
+                    <TableCell className="p-0 border-r min-w-[260px]">{renderTextInput(newRowData.client_name, (value) => setNewRowData((prev) => ({ ...prev, client_name: value })), "Client name", true)}</TableCell>
                     <TableCell className="p-0 border-r">{renderTextInput(newRowData.company_name, (value) => setNewRowData((prev) => ({ ...prev, company_name: value })), "Company name")}</TableCell>
                     <TableCell
                       className={cn(
@@ -552,7 +552,7 @@ export default function BinderPipeline() {
                   <TableCell className="p-0 border-r">{renderDateInput(draft.binder_date, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_date: value } })))}</TableCell>
                   <TableCell className="p-0 border-r">{renderPersonSelect(draft.quote_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, quote_person: value } })), "Quote person")}</TableCell>
                   <TableCell className="p-0 border-r">{renderPersonSelect(draft.binder_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_person: value } })), "Binder person")}</TableCell>
-                  <TableCell className="p-0 border-r font-medium">{renderTextInput(draft.client_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, client_name: value } })), "Client name", true)}</TableCell>
+                  <TableCell className="p-0 border-r font-medium min-w-[260px]">{renderTextInput(draft.client_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, client_name: value } })), "Client name", true)}</TableCell>
                   <TableCell className="p-0 border-r">{renderTextInput(draft.company_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, company_name: value } })), "Company name")}</TableCell>
                   <TableCell
                     className={cn(

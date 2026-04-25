@@ -473,10 +473,6 @@ class BinderViewSet(ModelViewSet):
 
     def get_queryset(self):
         qs = Binder.objects.select_related("binder_created_by").all().order_by('binder_date')
-        user_role = str(getattr(self.request.user, "role", "") or "").strip().upper()
-        is_admin = user_role in {"ADMIN", "MANAGER"} or getattr(self.request.user, "is_staff", False) or getattr(self.request.user, "is_superuser", False)
-        if not is_admin:
-            qs = qs.filter(binder_created_by=self.request.user)
         return qs
 
     def perform_create(self, serializer):
