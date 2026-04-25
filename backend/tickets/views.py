@@ -2,6 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
+import csv
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.utils import timezone
@@ -464,7 +465,7 @@ class NotificationViewSet(ModelViewSet):
 class BinderViewSet(ModelViewSet):
     serializer_class = BinderSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.OrderingFilter]
     
     search_fields = ['client_name', 'company_name', 'quote_person', 'binder_person', 'task']
     filterset_fields = []
@@ -483,34 +484,43 @@ class BinderViewSet(ModelViewSet):
         response["Expires"] = "0"
         return response
 
+    @action(detail=False, methods=["get"], url_path="all")
+    def all_entries(self, request):
+        """
+        Return all binder rows for any authenticated role without pagination/filtering.
+        Frontend uses this to avoid role-scoped stale caches or inherited query filters.
+        """
+        qs = Binder.objects.select_related("binder_created_by").all().order_by("binder_date")
+        data = BinderSerializer(qs, many=True).data
+        response = Response(data)
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
+        response["Expires"] = "0"
+        return response
+
     def perform_create(self, serializer):
         serializer.save(binder_created_by=self.request.user)
 
     @action(detail=False, methods=['get'])
     def export(self, request):
-        from io import BytesIO
         from django.http import HttpResponse
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-        from openpyxl.utils import get_column_letter
 
-        qs = self.filter_queryset(self.get_queryset())
-
-        workbook = Workbook()
-        worksheet = workbook.active
-        worksheet.title = "Binders"
-
-        headers = [
-            'Effective Date of Policy', 'Quote Person', 'Binder Person', 'Client Name',
-            'Company Name', 'Task', 'Notes', 'Created At'
-        ]
-        worksheet.append(headers)
-
-        for cell in worksheet[1]:
-            cell.font = Font(bold=True)
-
+        qs = self.get_queryset()
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="binders_export.csv"'
+        writer = csv.writer(response)
+        writer.writerow([
+            "Effective Date of Policy",
+            "Quote Person",
+            "Binder Person",
+            "Client Name",
+            "Company Name",
+            "Task",
+            "Notes",
+            "Created At",
+        ])
         for binder in qs:
-            worksheet.append([
+            writer.writerow([
                 binder.binder_date.strftime("%b %d, %Y") if binder.binder_date else "",
                 binder.quote_person,
                 binder.binder_person,
@@ -520,23 +530,4 @@ class BinderViewSet(ModelViewSet):
                 binder.notes,
                 binder.created_at.strftime("%b %d, %Y") if binder.created_at else "",
             ])
-
-        worksheet.freeze_panes = "A2"
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-            for cell in column:
-                value = "" if cell.value is None else str(cell.value)
-                max_length = max(max_length, len(value))
-            worksheet.column_dimensions[column_letter].width = min(max(12, max_length + 2), 40)
-
-        output = BytesIO()
-        workbook.save(output)
-        output.seek(0)
-
-        response = HttpResponse(
-            output.read(),
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = 'attachment; filename="binders_export.xlsx"'
         return response

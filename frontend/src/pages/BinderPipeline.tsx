@@ -11,7 +11,7 @@ import {
   startOfDay,
   startOfWeek,
 } from "date-fns";
-import api, { fetchAllPages } from "@/lib/api";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Download, Plus, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -85,8 +85,8 @@ export default function BinderPipeline() {
   const { data: binders, isLoading } = useQuery({
     queryKey: ["binders"],
     queryFn: async () => {
-      // By default the backend sorts ascending by binder_date
-      return await fetchAllPages(`/api/binders/?_ts=${Date.now()}`);
+      // Use dedicated all-rows endpoint to avoid any inherited list filters/pagination.
+      return await api.get(`/api/binders/all/?_ts=${Date.now()}`).then((res) => res.data);
     },
   });
 
@@ -117,13 +117,13 @@ export default function BinderPipeline() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'binders_export.xlsx');
+      link.setAttribute('download', 'binders_export.csv');
       document.body.appendChild(link);
       link.click();
       link.remove();
     } catch (error) {
-      console.error("Error exporting Excel", error);
-      toast.error("Failed to export Excel");
+      console.error("Error exporting CSV", error);
+      toast.error("Failed to export CSV");
     }
   };
 
@@ -416,7 +416,7 @@ export default function BinderPipeline() {
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleExport} className="gap-2">
             <Download className="h-4 w-4" />
-            Export Excel
+            Export CSV
           </Button>
           <Button
             onClick={() => {
