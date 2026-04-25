@@ -112,6 +112,54 @@ export default function BinderPipeline() {
     setRowDrafts(nextDrafts);
   }, [binders]);
 
+  const downloadCsvFromRows = (rows: any[]) => {
+    const escapeCsv = (value: unknown) => {
+      const text = String(value ?? "");
+      if (text.includes('"') || text.includes(",") || text.includes("\n")) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const headers = [
+      "Effective Date of Policy",
+      "Quote Person",
+      "Binder Person",
+      "Client Name",
+      "Company Name",
+      "Task",
+      "Notes",
+      "Created At",
+    ];
+    const lines = [
+      headers.join(","),
+      ...rows.map((binder) =>
+        [
+          binder?.binder_date || "",
+          binder?.quote_person || "",
+          binder?.binder_person || "",
+          binder?.client_name || "",
+          binder?.company_name || "",
+          binder?.task || "",
+          binder?.notes || "",
+          binder?.created_at || "",
+        ]
+          .map(escapeCsv)
+          .join(",")
+      ),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "binders_export.csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleExport = async () => {
     try {
       const response = await api.get('/api/binders/export/', {
@@ -125,6 +173,13 @@ export default function BinderPipeline() {
       link.click();
       link.remove();
     } catch (error) {
+      // Fallback: keep export working even if backend export dependency fails in production.
+      const rows = Array.isArray(binders) ? binders : [];
+      if (rows.length > 0) {
+        downloadCsvFromRows(rows);
+        toast.success("CSV exported using local fallback.");
+        return;
+      }
       console.error("Error exporting CSV", error);
       toast.error("Failed to export CSV");
     }
