@@ -11,7 +11,7 @@ import {
   startOfDay,
   startOfWeek,
 } from "date-fns";
-import api from "@/lib/api";
+import api, { fetchAllPages } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Download, Plus, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -85,8 +85,11 @@ export default function BinderPipeline() {
   const { data: binders, isLoading } = useQuery({
     queryKey: ["binders"],
     queryFn: async () => {
-      // Use dedicated all-rows endpoint to avoid any inherited list filters/pagination.
-      return await api.get(`/api/binders/all/?_ts=${Date.now()}`).then((res) => res.data);
+      const cacheBust = `_ts=${Date.now()}`;
+      // Primary list route now returns the same full payload for all roles.
+      const response = await api.get(`/api/binders/?${cacheBust}`);
+      if (Array.isArray(response.data)) return response.data;
+      return await fetchAllPages(`/api/binders/?${cacheBust}`);
     },
   });
 

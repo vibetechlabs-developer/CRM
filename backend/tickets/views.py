@@ -477,18 +477,9 @@ class BinderViewSet(ModelViewSet):
         return qs
 
     def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        # Prevent intermediary caches from serving user-scoped stale binder lists.
-        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response["Pragma"] = "no-cache"
-        response["Expires"] = "0"
-        return response
-
-    @action(detail=False, methods=["get"], url_path="all")
-    def all_entries(self, request):
         """
-        Return all binder rows for any authenticated role without pagination/filtering.
-        Frontend uses this to avoid role-scoped stale caches or inherited query filters.
+        Return the same full binder payload for all authenticated roles.
+        This keeps agent/admin responses identical on the primary /api/binders/ route.
         """
         qs = Binder.objects.select_related("binder_created_by").all().order_by("binder_date")
         data = BinderSerializer(qs, many=True).data
