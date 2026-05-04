@@ -145,7 +145,7 @@ class Ticket(models.Model):
 
     def _trigger_email_notifications(self, is_new, old_status):
         import logging
-        from tickets.email_services import send_ticket_completion_email
+        from tickets.email_services import send_ticket_completion_email, send_ticket_created_email
         
         logger = logging.getLogger(__name__)
 
@@ -153,7 +153,9 @@ class Ticket(models.Model):
             return
             
         try:
-            if not is_new and old_status and old_status != self.status and self.status == "COMPLETED":
+            if is_new:
+                send_ticket_created_email(self)
+            elif old_status and old_status != self.status and self.status == "COMPLETED":
                 send_ticket_completion_email(self)
         except Exception as e:
             logger.error(f"Failed to trigger email notification for ticket {self.ticket_no}: {e}")
@@ -169,14 +171,17 @@ class Ticket(models.Model):
         if not getattr(self, "client", None) or not self.client.phone:
             return
 
-        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+        frontend_url = (getattr(settings, "FRONTEND_URL", "http://localhost:5173") or "").strip().rstrip("/")
+        if frontend_url and not frontend_url.startswith(("http://", "https://")):
+            frontend_url = f"https://{frontend_url}"
 
         try:
             if is_new:
                 links = (
                     f"New Business: {frontend_url}/forms/new-business\n"
                     f"Renewal: {frontend_url}/forms/renewal\n"
-                    f"Changes: {frontend_url}/forms/changes"
+                    f"Changes: {frontend_url}/forms/changes\n"
+                    f"Customer Issue: {frontend_url}/forms/customer-issue"
                 )
                 msg = (
                     f"Hello {self.client.first_name},\n\n"
@@ -214,16 +219,7 @@ class TicketActivity(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None
         super().save(*args, **kwargs)
-        if is_new:
-            try:
-                from tickets.email_services import send_issue_resolution_update_email
-                send_issue_resolution_update_email(self.ticket, self.message)
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to send activity email: {e}")
 
     def __str__(self):
         return f"Activity for {self.ticket.ticket_no}"
@@ -287,4 +283,4 @@ class Binder(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Binder {self.id} - {self.client_name}"
+        return f"Binder {self.id} - {self.client_name}"

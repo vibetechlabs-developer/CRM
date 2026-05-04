@@ -247,6 +247,11 @@ WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID")
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "crm_whatsapp_verify")
 
+# Public frontend base URL used in outbound customer messages.
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+BRAND_NAME = os.environ.get("BRAND_NAME", "Feril Kapadia Insurance Broker")
+BRAND_LOGO_URL = os.environ.get("BRAND_LOGO_URL", "")
+
 # Email Configuration
 if DEBUG and not os.environ.get("EMAIL_HOST"):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
@@ -259,3 +264,4 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS", default=True)
 EMAIL_USE_SSL = _env_bool("EMAIL_USE_SSL", default=False)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "no-reply@example.com")
