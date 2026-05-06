@@ -76,16 +76,27 @@ def _schedule_whatsapp_notification(instance, created):
     first_name = getattr(instance.client, "first_name", "") if getattr(instance, "client", None) else ""
     ticket_no = instance.ticket_no
     ticket_type_display = instance.get_ticket_type_display()
+    from django.conf import settings
+    frontend_url = (getattr(settings, "FRONTEND_URL", "http://localhost:5173") or "").strip().rstrip("/")
+    if frontend_url and not frontend_url.startswith(("http://", "https://")):
+        frontend_url = f"https://{frontend_url}"
 
     if not phone:
         return
 
     def build_message():
         if created:
+            links = (
+                f"New Business: {frontend_url}/forms/new-business\n"
+                f"Renewal: {frontend_url}/forms/renewal\n"
+                f"Changes: {frontend_url}/forms/changes\n"
+                f"Customer Issue: {frontend_url}/forms/customer-issue"
+            )
             return (
                 f"Hello {first_name},\n\n"
                 f"We have received your request. Your ticket number is *{ticket_no}* "
-                f"({ticket_type_display}).\nWe will get back to you shortly."
+                f"({ticket_type_display}).\nWe will get back to you shortly.\n\n"
+                f"Helpful Links:\n{links}"
             )
         if old_status and old_status != new_status and new_status == "COMPLETED":
             return (

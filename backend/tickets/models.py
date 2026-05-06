@@ -116,7 +116,6 @@ class Ticket(models.Model):
 
         # Stash pre-save status so the post_save signal can compare.
         self._old_status = old_status
-
         # Cancellation tickets are always treated as discarded requests.
         if self.ticket_type == "CANCELLATION":
             self.status = "DISCARDED"
@@ -146,7 +145,29 @@ class Ticket(models.Model):
         elif self.status != "DISCARDED" and not is_new and old_status == "DISCARDED":
             self.discarded_at = None
 
-        return super().save(*args, **kwargs)
+        result = super().save(*args, **kwargs)
+
+        # Email notifications are handled here. WhatsApp is handled via post_save signal.
+        self._trigger_email_notifications(is_new, old_status)
+        return result
+
+    def _trigger_email_notifications(self, is_new, old_status):
+        import logging
+        from tickets.email_services import send_ticket_completion_email, send_ticket_created_email
+        
+        logger = logging.getLogger(__name__)
+
+        if not getattr(self, "client", None) or not self.client.email:
+            return
+            
+        try:
+            if is_new:
+                send_ticket_created_email(self)
+            elif old_status and old_status != self.status and self.status == "COMPLETED":
+                send_ticket_completion_email(self)
+        except Exception as e:
+            logger.error(f"Failed to trigger email notification for ticket {self.ticket_no}: {e}")
+
 
     def __str__(self):
         return self.ticket_no
@@ -170,6 +191,8 @@ class TicketActivity(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
     def __str__(self):
         return f"Activity for {self.ticket.ticket_no}"
 
@@ -218,7 +241,6 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification to {self.user_id}"
-
 
 class DiscardReopenReminderDismissal(models.Model):
     """

@@ -386,7 +386,7 @@ export default function BinderPipeline() {
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-    return binders.filter((binder: any) => {
+    const result = binders.filter((binder: any) => {
       const normalizedQuotePerson = String(binder.quote_person || "").toUpperCase();
       const normalizedBinderPerson = String(binder.binder_person || "").toUpperCase();
       const normalizedTask = String(binder.task || "").toUpperCase();
@@ -432,6 +432,12 @@ export default function BinderPipeline() {
         .join(" ");
 
       return searchable.includes(query);
+    });
+
+    return result.sort((a: any, b: any) => {
+      const dateA = a.binder_date ? new Date(a.binder_date).getTime() : 0;
+      const dateB = b.binder_date ? new Date(b.binder_date).getTime() : 0;
+      return dateB - dateA;
     });
   }, [binders, searchTerm, quotePersonFilter, binderPersonFilter, dateFilter]);
 
