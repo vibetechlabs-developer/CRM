@@ -4,6 +4,17 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+def _resolve_sender_email() -> str:
+    """
+    Resolve a single sender/support email used across all ticket emails.
+    Prefer EMAIL_HOST_USER so runtime SMTP account changes reflect everywhere.
+    """
+    return (
+        getattr(settings, "EMAIL_HOST_USER", "")
+        or getattr(settings, "DEFAULT_FROM_EMAIL", "")
+        or "support@example.com"
+    )
+
 def _policy_lines(ticket) -> list[str]:
     """
     Returns human-friendly policy details lines (if a policy is linked).
@@ -33,11 +44,7 @@ def _get_brand_context() -> dict:
     configured_logo = (getattr(settings, "BRAND_LOGO_URL", "") or "").strip()
     # Keep logo consistent with CRM UI, which uses `/logo.png`.
     logo_url = configured_logo or (f"{frontend_url}/logo.png" if frontend_url else "")
-    support_email = (
-        getattr(settings, "DEFAULT_FROM_EMAIL", "")
-        or getattr(settings, "EMAIL_HOST_USER", "")
-        or "support@example.com"
-    )
+    support_email = _resolve_sender_email()
     return {
         "brand_name": brand_name,
         "logo_url": logo_url,
@@ -59,7 +66,7 @@ def _send_branded_email(
         return
 
     ctx = _get_brand_context()
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or getattr(settings, "EMAIL_HOST_USER", "")
+    from_email = _resolve_sender_email()
     logo_html = (
         f'<img src="{ctx["logo_url"]}" alt="{ctx["brand_name"]}" style="max-height:52px; margin-bottom:16px;" />'
         if ctx["logo_url"]
@@ -215,7 +222,7 @@ def send_follow_up_email(ticket):
         send_mail(
             subject=subject,
             message=message,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or settings.EMAIL_HOST_USER,
+            from_email=_resolve_sender_email(),
             recipient_list=[ticket.client.email],
             fail_silently=False,
         )
@@ -243,7 +250,7 @@ def send_issue_resolution_update_email(ticket, update_message):
         send_mail(
             subject=subject,
             message=message,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or settings.EMAIL_HOST_USER,
+            from_email=_resolve_sender_email(),
             recipient_list=[ticket.client.email],
             fail_silently=False,
         )
