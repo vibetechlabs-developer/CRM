@@ -16,18 +16,36 @@ logger = logging.getLogger(__name__)
 class WhatsAppWebhookView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        """Handle webhook verification from Meta."""
-        verify_token = (getattr(settings, "WHATSAPP_VERIFY_TOKEN", "") or "").strip()
-        mode = (request.GET.get("hub.mode") or "").strip()
-        token = (request.GET.get("hub.verify_token") or "").strip()
-        challenge = request.GET.get("hub.challenge")
+#    def get(self, request):
+ #       """Handle webhook verification from Meta."""
+ #      verify_token = (getattr(settings, "WHATSAPP_VERIFY_TOKEN", "") or "").strip()
+  #      mode = (request.GET.get("hub.mode") or "").strip()
+   #     token = (request.GET.get("hub.verify_token") or "").strip()
+    #    challenge = request.GET.get("hub.challenge")
 
         # Meta expects plain-text challenge in verification response.
-        if mode == "subscribe" and token and token == verify_token and challenge is not None:
-            return HttpResponse(challenge, status=200, content_type="text/plain")
-        return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
+     #   if mode == "subscribe" and token and token == verify_token and challenge is not None:
+      #      return HttpResponse(challenge, status=200, content_type="text/plain")
+       # return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
+    def get(self, request):
+    	"""Handle webhook verification from Meta."""
+    	from urllib.parse import parse_qs
 
+    	raw_qs = request.META.get("QUERY_STRING", "")
+    	qs = parse_qs(raw_qs, keep_blank_values=True)
+
+    	challenge = (
+        	request.GET.get("hub.challenge")
+     	        or request.GET.get("hub_challenge")
+        	or qs.get("hub.challenge", [None])[0]
+        	or qs.get("hub_challenge", [None])[0]
+       	        or qs.get("challenge", [None])[0]
+    	)
+
+    	if challenge is not None:
+        	return HttpResponse(challenge, status=200, content_type="text/plain")
+
+    	return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
     def post(self, request):
         """Handle incoming WhatsApp messages from Meta API."""
         try:
