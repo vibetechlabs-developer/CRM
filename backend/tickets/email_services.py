@@ -1,5 +1,5 @@
 import logging
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -215,7 +215,7 @@ def send_follow_up_email(ticket):
         send_mail(
             subject=subject,
             message=message,
-            from_email=settings.EMAIL_HOST_USER,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or settings.EMAIL_HOST_USER,
             recipient_list=[ticket.client.email],
             fail_silently=False,
         )
@@ -243,7 +243,7 @@ def send_issue_resolution_update_email(ticket, update_message):
         send_mail(
             subject=subject,
             message=message,
-            from_email=settings.EMAIL_HOST_USER,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or settings.EMAIL_HOST_USER,
             recipient_list=[ticket.client.email],
             fail_silently=False,
         )
