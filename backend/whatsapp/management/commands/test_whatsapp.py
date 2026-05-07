@@ -28,15 +28,25 @@ class Command(BaseCommand):
 
         # We will pass dummy components just in case the template requires them.
         # This structure matches 2 variables {{1}} and {{2}}
+        # components = [
+        #     {
+        #         "type": "body",
+        #         "parameters": [
+        #             {"type": "text", "text": "Test User"},
+        #             {"type": "text", "text": "POL-123456"}
+        #         ]
+        #     }
+        # ]
         components = [
-            {
-                "type": "body",
-                "parameters": [
-                    {"type": "text", "text": "Test User"},
-                    {"type": "text", "text": "POL-123456"}
-                ]
-            }
-        ]
+    {
+        "type": "body",
+        "parameters": [
+            {"type": "text", "text": "Test User"},
+            {"type": "text", "text": "7"},
+            {"type": "text", "text": "POL-123456"},
+        ],
+    }
+]
 
         try:
             response = send_whatsapp_template_message(
