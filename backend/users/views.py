@@ -407,7 +407,7 @@ class AgentNoteViewSet(ModelViewSet):
         date = self.request.query_params.get('date')
         if date:
             qs = qs.filter(date=date)
-        return qs
+        return qs.order_by('-date', '-created_at')
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

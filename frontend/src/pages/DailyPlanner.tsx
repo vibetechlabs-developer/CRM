@@ -4,9 +4,9 @@ import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Calendar as CalendarIcon, CheckCircle2, Circle } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Trash2, Plus, Calendar as CalendarIcon, CheckCircle2, Circle, ListFilter } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -22,6 +22,7 @@ interface AgentNote {
 
 export default function DailyPlanner() {
   const [date, setDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<"date" | "all">("date");
   const [content, setContent] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   
@@ -30,10 +31,13 @@ export default function DailyPlanner() {
 
   const formattedDate = format(date, "yyyy-MM-dd");
 
+  const queryKey = viewMode === "date" ? ["agent-notes", formattedDate] : ["agent-notes", "all"];
+
   const { data: notes = [], isLoading } = useQuery<AgentNote[]>({
-    queryKey: ["agent-notes", formattedDate],
+    queryKey: queryKey,
     queryFn: async () => {
-      const res = await api.get(`/api/users/notes/?date=${formattedDate}`);
+      const url = viewMode === "date" ? `/api/users/notes/?date=${formattedDate}` : `/api/users/notes/`;
+      const res = await api.get(url);
       return Array.isArray(res.data) ? res.data : (res.data?.results || []);
     },
   });
@@ -44,9 +48,9 @@ export default function DailyPlanner() {
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-notes", formattedDate] });
+      queryClient.invalidateQueries({ queryKey: ["agent-notes"] });
       setContent("");
-      toast({ title: "Note added successfuly." });
+      toast({ title: "Note added successfully." });
     },
     onError: () => {
       toast({ title: "Failed to add note.", variant: "destructive" });
@@ -59,7 +63,7 @@ export default function DailyPlanner() {
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-notes", formattedDate] });
+      queryClient.invalidateQueries({ queryKey: ["agent-notes"] });
     },
   });
 
@@ -68,7 +72,7 @@ export default function DailyPlanner() {
       await api.delete(`/api/users/notes/${id}/`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-notes", formattedDate] });
+      queryClient.invalidateQueries({ queryKey: ["agent-notes"] });
       toast({ title: "Note deleted." });
     },
   });
@@ -97,7 +101,12 @@ export default function DailyPlanner() {
           <Calendar
             mode="single"
             selected={date}
-            onSelect={(newDate) => newDate && setDate(newDate)}
+            onSelect={(newDate) => {
+              if (newDate) {
+                setDate(newDate);
+                setViewMode("date");
+              }
+            }}
             className="rounded-md border bg-background flex justify-center"
           />
         </div>
@@ -116,14 +125,39 @@ export default function DailyPlanner() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-0 bg-card border rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b shrink-0 bg-card/50">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            Notes for {format(date, "MMMM d, yyyy")}
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">Manage your daily tasks and priorities.</p>
+        <div className="p-6 border-b shrink-0 bg-card/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              {viewMode === "date" ? `Notes for ${format(date, "MMMM d, yyyy")}` : "All Notes"}
+            </h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {viewMode === "date" 
+                ? "Manage your daily tasks and priorities." 
+                : "Manage all tasks and priorities across all dates."}
+            </p>
+          </div>
+
+          <Tabs value={viewMode} onValueChange={(val) => setViewMode(val as "date" | "all")} className="w-full sm:w-auto">
+            <TabsList className="grid w-full grid-cols-2 sm:w-auto">
+              <TabsTrigger value="date" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                <CalendarIcon className="w-4 h-4" />
+                Date View
+              </TabsTrigger>
+              <TabsTrigger value="all" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                <ListFilter className="w-4 h-4" />
+                All Notes
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <div className="p-6 border-b bg-muted/20 shrink-0">
+          {viewMode === "all" && (
+            <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+              <CalendarIcon className="w-3 h-3 text-primary" />
+              Note will be saved under selected date: <span className="font-semibold text-foreground">{format(date, "MMMM d, yyyy")}</span>
+            </p>
+          )}
           <form onSubmit={handleAddNote} className="flex flex-col sm:flex-row gap-3">
             <Input
               value={content}
@@ -158,8 +192,14 @@ export default function DailyPlanner() {
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <CheckCircle2 className="w-8 h-8 opacity-20" />
               </div>
-              <p className="text-lg font-medium text-foreground">No tasks for today</p>
-              <p className="text-sm mt-1 max-w-sm">Enjoy your day or add a new task to get started.</p>
+              <p className="text-lg font-medium text-foreground">
+                {viewMode === "date" ? "No tasks for today" : "No notes found"}
+              </p>
+              <p className="text-sm mt-1 max-w-sm">
+                {viewMode === "date" 
+                  ? "Enjoy your day or add a new task to get started." 
+                  : "You haven't created any notes yet."}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -185,10 +225,14 @@ export default function DailyPlanner() {
                     <p className={`text-base ${note.is_completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
                       {note.content}
                     </p>
-                    <div className="flex items-center mt-2">
-                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${priorityColors[note.priority]}`}>
-                         {note.priority}
-                       </span>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${priorityColors[note.priority]}`}>
+                        {note.priority}
+                      </span>
+                      <span className="text-xs text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <CalendarIcon className="w-3 h-3 text-muted-foreground" />
+                        {format(new Date(note.date + "T00:00:00"), "MMM d, yyyy")}
+                      </span>
                     </div>
                   </div>
                   
