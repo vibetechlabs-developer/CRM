@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning, Zap } from "lucide-react";
+import { ArrowLeft, FileText, RefreshCw, SlidersHorizontal, XCircle, MessageCircleWarning, Zap, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RequestType } from "@/lib/data";
 
@@ -59,6 +59,14 @@ const requestTypes: {
     icon: MessageCircleWarning,
     color: "text-amber-600",
     bg: "bg-amber-100 border-amber-200",
+  },
+  {
+    type: "Urgent Request" as RequestType,
+    path: "/crm/forms/urgent",
+    description: "Create high priority urgent request with license and VIN details",
+    icon: ShieldAlert,
+    color: "text-red-600",
+    bg: "bg-red-100 border-red-200",
   },
 ];
 

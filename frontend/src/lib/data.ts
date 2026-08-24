@@ -8,7 +8,8 @@ export type RequestType =
   | "Changes Form"
   | "Adjustment"
   | "Cancellation"
-  | "Customer Issue";
+  | "Customer Issue"
+  | "Urgent Request";
 export type InsuranceType = "Home Insurance" | "Auto Insurance" | "Life Insurance" | "Business Insurance" | "Health Insurance";
 export type PipelineStage = "Lead/Inquiry" | "Renewal" | "Follow Up" | "Changes" | "Completed" | "Discarded Leads";
 export type UserRole = "Admin" | "Agent";
@@ -53,7 +54,7 @@ export interface Ticket {
 
 // ===== Backend ticket DTO + UI ticket model (used by Tickets page) =====
 
-export type TicketTypeCode = "NEW" | "RENEWAL" | "CHANGES" | "CANCELLATION" | (string & {});
+export type TicketTypeCode = "NEW" | "RENEWAL" | "CHANGES" | "CANCELLATION" | "URGENT" | (string & {});
 export type TicketStatusCode = "LEAD" | "RENEWAL" | "FOLLOW_UP" | "CHANGES" | "COMPLETED" | "DISCARDED" | (string & {});
 export type TicketPriorityCode = "LOW" | "MEDIUM" | "HIGH" | (string & {});
 export type TicketSourceCode = "WHATSAPP" | "WEB" | "MANUAL" | (string & {});
@@ -134,6 +135,8 @@ export const getTypeDisplay = (typeCode: TicketTypeCode): RequestType | string =
       return "Customer Issue";
     case "CANCELLATION":
       return "Cancellation";
+    case "URGENT":
+      return "Urgent Request";
     default:
       return typeCode;
   }
@@ -229,10 +232,12 @@ export const formatBackendTicket = (t: BackendTicket): TicketRow => {
       ? t.assigned_to
       : (t.assigned_to?.id ?? null);
 
-  // Determine display request type, with special handling for Customer Issue forms
+  // Determine display request type, with special handling for Customer Issue and Urgent forms
   let displayType: RequestType | string = getTypeDisplay(t.ticket_type);
   if (t.additional_notes && t.additional_notes.includes("[Form: Customer Issue]")) {
     displayType = "Customer Issue";
+  } else if (t.additional_notes && t.additional_notes.includes("[Form: Urgent Request]")) {
+    displayType = "Urgent Request";
   }
 
   // Infer who created the ticket based on `source`:
@@ -410,6 +415,7 @@ export const requestTypes: { type: RequestType; description: string; icon: strin
   { type: "Changes", description: "Update policy details", icon: "SlidersHorizontal" },
   { type: "Customer Issue", description: "Service or billing issue from customer", icon: "AlertCircle" },
   { type: "Cancellation", description: "Terminate policy", icon: "Ban" },
+  { type: "Urgent Request", description: "High-priority urgent request", icon: "Zap" },
 ];
 
 export const priorities: Priority[] = ["High", "Medium", "Low"];

@@ -7,6 +7,7 @@ import RenewalRequestForm from "./RenewalRequestForm";
 import PolicyChangeForm from "./PolicyChangeForm";
 import CancellationForm from "./CancellationForm";
 import CustomerIssueForm from "./CustomerIssueForm";
+import UrgentForm from "./UrgentForm";
 
 const FORM_TITLES: Record<string, string> = {
   "new-policy": "New Policy",
@@ -14,6 +15,8 @@ const FORM_TITLES: Record<string, string> = {
   adjustment: "Changes Form",
   cancellation: "Cancellation",
   "customer-issue": "Customer Issue",
+  urgent: "Urgent Request",
+  "urgent-request": "Urgent Request",
 };
 
 const ClientTicketForm = () => {
@@ -32,6 +35,9 @@ const ClientTicketForm = () => {
         return <CancellationForm />;
       case "customer-issue":
         return <CustomerIssueForm />;
+      case "urgent":
+      case "urgent-request":
+        return <UrgentForm />;
       default:
         return null;
     }

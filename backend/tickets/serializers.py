@@ -337,6 +337,9 @@ class NotificationSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class BinderSerializer(serializers.ModelSerializer):
+    quote_person = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    binder_person = serializers.CharField(required=False, allow_blank=True, max_length=150)
+
     class Meta:
         model = Binder
         fields = "__all__"

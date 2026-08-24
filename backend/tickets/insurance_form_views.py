@@ -385,6 +385,156 @@ def submit_customer_issue_form(request):
     return submit_typed_form(request)
 
 
+@ratelimit(key="ip", rate="10/m", method="POST", block=True)
+@csrf_protect
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def submit_urgent_form(request):
+    """
+    Public endpoint: Urgent Request form.
+    Accepts: first_name, last_name, email, phone, street_address, street_address_line_2,
+    city, state, postal_code, license_number, vin_number, notes, additional_details.
+    Creates or updates Client and creates a High Priority ticket.
+    """
+    try:
+        data = request.data
+        if hasattr(data, "items"):
+            raw_payload = {k: v for k, v in data.items()}
+        else:
+            raw_payload = data
+        data = raw_payload
+
+        first_name = _safe_get_text(data, 'first_name')
+        last_name = _safe_get_text(data, 'last_name')
+        email = _safe_get_text(data, 'email').lower()
+        phone = _safe_get_text(data, 'phone')
+        occupation = _safe_get_text(data, 'occupation')
+
+        street_address = _safe_get_text(data, 'street_address')
+        street_address_line_2 = _safe_get_text(data, 'street_address_line_2')
+        city = _safe_get_text(data, 'city')
+        state = _safe_get_text(data, 'state')
+        postal_code = _safe_get_text(data, 'postal_code')
+        address = _safe_get_text(data, 'address')
+
+        address_parts = [p for p in [street_address, street_address_line_2, city, state, postal_code] if p]
+        full_address = ', '.join(address_parts) if address_parts else address
+
+        license_number = _safe_get_text(data, 'license_number') or _safe_get_text(data, 'driving_license_number')
+        vin_number = _safe_get_text(data, 'vin_number') or _safe_get_text(data, 'car_vin_number')
+        notes = _safe_get_text(data, 'notes') or _safe_get_text(data, 'urgent_notes')
+        additional_details = _safe_get_text(data, 'additional_details')
+
+        field_errors: dict[str, list[str]] = {}
+        if not first_name:
+            field_errors["first_name"] = ["First name is required"]
+        if not last_name:
+            field_errors["last_name"] = ["Last name is required"]
+        if not email:
+            field_errors["email"] = ["Email is required"]
+        if not phone:
+            field_errors["phone"] = ["Phone number is required"]
+        if not license_number:
+            field_errors["license_number"] = ["Driver's license number is required"]
+        if not vin_number:
+            field_errors["vin_number"] = ["VIN number is required"]
+        if not notes:
+            field_errors["notes"] = ["Urgent notes / details are required"]
+
+        if field_errors:
+            first_msg = next((msgs[0] for msgs in field_errors.values() if msgs), "Validation failed.")
+            return Response(
+                {"success": False, "field_errors": field_errors, "error": first_msg},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return Response(
+                {"success": False, "field_errors": {"email": ["Invalid email address"]}, "error": "Invalid email address"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        client = Client.objects.filter(email=email).first()
+        if client:
+            created = False
+        else:
+            client = Client.objects.create(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                occupation=occupation,
+                address=full_address,
+            )
+            created = True
+
+        if not created:
+            client.first_name = first_name
+            client.last_name = last_name
+            client.phone = phone
+            if occupation:
+                client.occupation = occupation
+            if full_address:
+                client.address = full_address
+            client.save()
+
+        details_dict = {
+            "Request Type": "Urgent Request",
+            "Urgency": "High",
+            "Driver License Number": license_number,
+            "Car VIN Number": vin_number,
+            "Urgent Notes": notes,
+        }
+        if street_address:
+            details_dict["Street Address"] = street_address
+        if city:
+            details_dict["City"] = city
+        if state:
+            details_dict["State / Province"] = state
+        if postal_code:
+            details_dict["Postal Code"] = postal_code
+        if full_address:
+            details_dict["Address"] = full_address
+        if additional_details:
+            details_dict["Additional Details"] = additional_details
+
+        source = 'MANUAL' if request.user.is_authenticated else 'WEB'
+        source_override = _safe_get_text(data, "source_override", "").upper()
+        if request.user.is_authenticated and source_override in {"MANUAL", "WEB"}:
+            source = source_override
+
+        notes_combined = f"{notes}\n\n[Form: Urgent Request]"
+        if additional_details:
+            notes_combined += f"\nAdditional Notes: {additional_details}"
+
+        ticket = Ticket.objects.create(
+            client=client,
+            ticket_type="NEW",
+            status="LEAD",
+            priority="HIGH",
+            insurance_type="Auto Insurance - Urgent",
+            details=details_dict,
+            additional_notes=notes_combined.strip(),
+            source=source,
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Urgent form submitted successfully',
+            'ticket_no': ticket.ticket_no,
+            'client_id': client.client_id,
+            'client_created': created
+        }, status=status.HTTP_201_CREATED)
+    except Exception:
+        logger.exception("submit_urgent_form failed")
+        return Response(
+            {'error': 'An internal error occurred while submitting the form.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 def submit_typed_form(request):
     """
     Shared handler for the typed forms above.

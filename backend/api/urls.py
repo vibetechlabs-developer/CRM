@@ -12,6 +12,7 @@ from tickets.insurance_form_views import (
     submit_changes_form,
     submit_cancellation_form,
     submit_customer_issue_form,
+    submit_urgent_form,
 )
 
 router = DefaultRouter()
@@ -35,6 +36,7 @@ urlpatterns = [
     path("forms/changes/", submit_changes_form, name="changes-form"),
     path("forms/cancellation/", submit_cancellation_form, name="cancellation-form"),
     path("forms/customer-issue/", submit_customer_issue_form, name="customer-issue-form"),
+    path("forms/urgent/", submit_urgent_form, name="urgent-form"),
     
     path("", include(router.urls)),
     path("users/", include("users.urls")),

@@ -16,50 +16,30 @@ logger = logging.getLogger(__name__)
 class WhatsAppWebhookView(APIView):
     permission_classes = [AllowAny]
 
-#    def get(self, request):
- #       """Handle webhook verification from Meta."""
- #      verify_token = (getattr(settings, "WHATSAPP_VERIFY_TOKEN", "") or "").strip()
-  #      mode = (request.GET.get("hub.mode") or "").strip()
-   #     token = (request.GET.get("hub.verify_token") or "").strip()
-    #    challenge = request.GET.get("hub.challenge")
-
-        # Meta expects plain-text challenge in verification response.
-<<<<<<< HEAD
-        # TEMP: relax verification to unblock webhook setup.
-        # Some deployments show token/params mismatch; challenge must be echoed to verify.
-        if mode == "subscribe" and challenge is not None:
-            logger.info(
-                "WhatsApp webhook verification (relaxed): mode=%s token=%s verify_token=%s",
-                mode,
-                token,
-                verify_token,
-            )
-            return HttpResponse(challenge, status=200, content_type="text/plain")
-        return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
-=======
-     #   if mode == "subscribe" and token and token == verify_token and challenge is not None:
-      #      return HttpResponse(challenge, status=200, content_type="text/plain")
-       # return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
     def get(self, request):
-    	"""Handle webhook verification from Meta."""
-    	from urllib.parse import parse_qs
->>>>>>> 9a82209 (wip: local whatsapp view changes)
+        """Handle webhook verification from Meta."""
+        from urllib.parse import parse_qs
 
-    	raw_qs = request.META.get("QUERY_STRING", "")
-    	qs = parse_qs(raw_qs, keep_blank_values=True)
+        verify_token = (getattr(settings, "WHATSAPP_VERIFY_TOKEN", "") or "").strip()
+        mode = (request.GET.get("hub.mode") or "").strip()
+        token = (request.GET.get("hub.verify_token") or "").strip()
 
-    	challenge = (
-        	request.GET.get("hub.challenge")
-     	        or request.GET.get("hub_challenge")
-        	or qs.get("hub.challenge", [None])[0]
-        	or qs.get("hub_challenge", [None])[0]
-       	        or qs.get("challenge", [None])[0]
-    	)
+        raw_qs = request.META.get("QUERY_STRING", "")
+        qs = parse_qs(raw_qs, keep_blank_values=True)
 
-    	if challenge is not None:
-        	return HttpResponse(challenge, status=200, content_type="text/plain")
+        challenge = (
+            request.GET.get("hub.challenge")
+            or request.GET.get("hub_challenge")
+            or qs.get("hub.challenge", [None])[0]
+            or qs.get("hub_challenge", [None])[0]
+            or qs.get("challenge", [None])[0]
+        )
 
-    	return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
+        if challenge is not None:
+            return HttpResponse(challenge, status=200, content_type="text/plain")
+
+        return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
+
     def post(self, request):
         """Handle incoming WhatsApp messages from Meta API."""
         try:
@@ -150,6 +130,8 @@ class WhatsAppWebhookView(APIView):
             f"{frontend_url}/forms/changes\n\n"
             "4) Customer Issue\n"
             f"{frontend_url}/forms/customer-issue\n\n"
+            "5) Urgent Request\n"
+            f"{frontend_url}/forms/urgent\n\n"
             "Our team will get back to you shortly."
         )
         try:

@@ -289,9 +289,9 @@ class Binder(models.Model):
         ("COMPLETED", "Completed"),
     ]
 
-    binder_date = models.DateField(default=timezone.now)
-    quote_person = models.CharField(max_length=150, blank=True, choices=PERSON_CHOICES)
-    binder_person = models.CharField(max_length=150, blank=True, choices=PERSON_CHOICES)
+    binder_date = models.DateField(default=timezone.localdate)
+    quote_person = models.CharField(max_length=150, blank=True)
+    binder_person = models.CharField(max_length=150, blank=True)
     binder_created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

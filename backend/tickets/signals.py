@@ -90,7 +90,8 @@ def _schedule_whatsapp_notification(instance, created):
                 f"New Business: {frontend_url}/forms/new-business\n"
                 f"Renewal: {frontend_url}/forms/renewal\n"
                 f"Changes: {frontend_url}/forms/changes\n"
-                f"Customer Issue: {frontend_url}/forms/customer-issue"
+                f"Customer Issue: {frontend_url}/forms/customer-issue\n"
+                f"Urgent Request: {frontend_url}/forms/urgent"
             )
             return (
                 f"Hello {first_name},\n\n"

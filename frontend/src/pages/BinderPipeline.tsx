@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import api, { fetchAllPages } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Download, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Plus, Search, Trash2, UserPlus, Users, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,8 +44,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const PERSON_OPTIONS = ["KALPAN", "JEEL", "VATSAL", "HARSH", "PRINCE", "FERIL"] as const;
+const DEFAULT_PERSON_OPTIONS = ["KALPAN", "JEEL", "VATSAL", "HARSH", "PRINCE", "FERIL"] as const;
 const DATE_FILTER_OPTIONS = ["ALL", "TODAY", "THIS_WEEK", "THIS_MONTH", "OVERDUE_PENDING"] as const;
 
 type BinderFormData = {
@@ -70,6 +78,34 @@ export default function BinderPipeline() {
   const [savingRowId, setSavingRowId] = useState<number | null>(null);
   const [deletingBinderId, setDeletingBinderId] = useState<number | null>(null);
   const [binderPendingDelete, setBinderPendingDelete] = useState<number | null>(null);
+
+  // Dynamic Person Management
+  const [customPersons, setCustomPersons] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("crm_binder_custom_persons");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isAddPersonDialogOpen, setIsAddPersonDialogOpen] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
+  const [pendingPersonTarget, setPendingPersonTarget] = useState<{
+    type: "new_quote" | "new_binder" | "edit_quote" | "edit_binder";
+    binderId?: number;
+  } | null>(null);
+
+  const { data: crmUsers = [] } = useQuery({
+    queryKey: ["binder-crm-users"],
+    queryFn: async () => {
+      try {
+        const users = await fetchAllPages("/api/users/");
+        return Array.isArray(users) ? users : [];
+      } catch {
+        return [];
+      }
+    },
+  });
   const emptyForm: BinderFormData = {
     binder_date: new Date().toISOString().split("T")[0],
     quote_person: "",
@@ -266,21 +302,104 @@ export default function BinderPipeline() {
     );
   };
 
+  const allPersonOptions = useMemo(() => {
+    const set = new Set<string>();
+    // Default persons
+    DEFAULT_PERSON_OPTIONS.forEach((p) => set.add(p.toUpperCase()));
+    // CRM users
+    crmUsers.forEach((u: any) => {
+      const name = (u.first_name || u.username || "").trim();
+      if (name) set.add(name.toUpperCase());
+    });
+    // Custom persons added by users
+    customPersons.forEach((p) => {
+      if (p.trim()) set.add(p.trim().toUpperCase());
+    });
+    // From loaded binders
+    (binders || []).forEach((b: any) => {
+      if (b.quote_person?.trim()) set.add(b.quote_person.trim().toUpperCase());
+      if (b.binder_person?.trim()) set.add(b.binder_person.trim().toUpperCase());
+    });
+    return Array.from(set).sort();
+  }, [crmUsers, customPersons, binders]);
+
+  const handleAddCustomPerson = (nameToAdd?: string) => {
+    const raw = (nameToAdd !== undefined ? nameToAdd : newPersonName).trim().toUpperCase();
+    if (!raw) {
+      toast.error("Please enter a person name");
+      return;
+    }
+    if (!customPersons.includes(raw)) {
+      const updated = [...customPersons, raw];
+      setCustomPersons(updated);
+      try {
+        localStorage.setItem("crm_binder_custom_persons", JSON.stringify(updated));
+      } catch {}
+      toast.success(`Person "${raw}" added successfully.`);
+    } else {
+      toast.info(`Person "${raw}" is available in the list.`);
+    }
+
+    if (pendingPersonTarget) {
+      if (pendingPersonTarget.type === "new_quote") {
+        setNewRowData((prev) => ({ ...prev, quote_person: raw }));
+      } else if (pendingPersonTarget.type === "new_binder") {
+        setNewRowData((prev) => ({ ...prev, binder_person: raw }));
+      } else if (pendingPersonTarget.type === "edit_quote" && pendingPersonTarget.binderId) {
+        const id = pendingPersonTarget.binderId;
+        setRowDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), quote_person: raw } }));
+      } else if (pendingPersonTarget.type === "edit_binder" && pendingPersonTarget.binderId) {
+        const id = pendingPersonTarget.binderId;
+        setRowDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), binder_person: raw } }));
+      }
+      setPendingPersonTarget(null);
+    }
+
+    setNewPersonName("");
+    setIsAddPersonDialogOpen(false);
+  };
+
+  const handleRemoveCustomPerson = (nameToRemove: string) => {
+    const updated = customPersons.filter((p) => p !== nameToRemove);
+    setCustomPersons(updated);
+    try {
+      localStorage.setItem("crm_binder_custom_persons", JSON.stringify(updated));
+    } catch {}
+    toast.success(`Custom person "${nameToRemove}" removed.`);
+  };
+
   const renderPersonSelect = (
     value: string,
     onValueChange: (value: string) => void,
-    placeholder: string
+    placeholder: string,
+    targetContext?: { type: "new_quote" | "new_binder" | "edit_quote" | "edit_binder"; binderId?: number }
   ) => (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select
+      value={value}
+      onValueChange={(v) => {
+        if (v === "__ADD_NEW_PERSON__") {
+          setPendingPersonTarget(targetContext || null);
+          setIsAddPersonDialogOpen(true);
+        } else {
+          onValueChange(v);
+        }
+      }}
+    >
       <SelectTrigger className="h-8 text-xs min-w-[120px] rounded-none border-0 shadow-none focus:ring-0">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {PERSON_OPTIONS.map((person) => (
+        {allPersonOptions.map((person) => (
           <SelectItem key={person} value={person}>
             {person}
           </SelectItem>
         ))}
+        <SelectItem
+          value="__ADD_NEW_PERSON__"
+          className="text-primary font-semibold border-t mt-1 pt-1.5 focus:text-primary cursor-pointer"
+        >
+          + Add New Person...
+        </SelectItem>
       </SelectContent>
     </Select>
   );
@@ -477,7 +596,18 @@ export default function BinderPipeline() {
             Manage binder entries and export reports
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setPendingPersonTarget(null);
+              setIsAddPersonDialogOpen(true);
+            }}
+            className="gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Manage Persons
+          </Button>
           <Button variant="outline" onClick={handleExport} className="gap-2">
             <Download className="h-4 w-4" />
             Export CSV
@@ -512,7 +642,7 @@ export default function BinderPipeline() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Quote Persons</SelectItem>
-              {PERSON_OPTIONS.map((person) => (
+              {allPersonOptions.map((person) => (
                 <SelectItem key={person} value={person}>
                   {person}
                 </SelectItem>
@@ -525,7 +655,7 @@ export default function BinderPipeline() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Binder Persons</SelectItem>
-              {PERSON_OPTIONS.map((person) => (
+              {allPersonOptions.map((person) => (
                 <SelectItem key={person} value={person}>
                   {person}
                 </SelectItem>
@@ -581,8 +711,8 @@ export default function BinderPipeline() {
                 {isAddingRow && (
                   <TableRow className="border-b bg-yellow-50/40">
                     <TableCell className="p-0 border-r">{renderDateInput(newRowData.binder_date, (value) => setNewRowData((prev) => ({ ...prev, binder_date: value })))}</TableCell>
-                    <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.quote_person, (value) => setNewRowData((prev) => ({ ...prev, quote_person: value })), "Quote person")}</TableCell>
-                    <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.binder_person, (value) => setNewRowData((prev) => ({ ...prev, binder_person: value })), "Binder person")}</TableCell>
+                    <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.quote_person, (value) => setNewRowData((prev) => ({ ...prev, quote_person: value })), "Quote person", { type: "new_quote" })}</TableCell>
+                    <TableCell className="p-0 border-r">{renderPersonSelect(newRowData.binder_person, (value) => setNewRowData((prev) => ({ ...prev, binder_person: value })), "Binder person", { type: "new_binder" })}</TableCell>
                     <TableCell className="p-0 border-r min-w-[260px]">{renderTextInput(newRowData.client_name, (value) => setNewRowData((prev) => ({ ...prev, client_name: value })), "Client name", true)}</TableCell>
                     <TableCell className="p-0 border-r">{renderTextInput(newRowData.company_name, (value) => setNewRowData((prev) => ({ ...prev, company_name: value })), "Company name")}</TableCell>
                     <TableCell
@@ -614,8 +744,8 @@ export default function BinderPipeline() {
                 return (
                 <TableRow key={binder.id} className="border-b">
                   <TableCell className="p-0 border-r">{renderDateInput(draft.binder_date, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_date: value } })))}</TableCell>
-                  <TableCell className="p-0 border-r">{renderPersonSelect(draft.quote_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, quote_person: value } })), "Quote person")}</TableCell>
-                  <TableCell className="p-0 border-r">{renderPersonSelect(draft.binder_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_person: value } })), "Binder person")}</TableCell>
+                  <TableCell className="p-0 border-r">{renderPersonSelect(draft.quote_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, quote_person: value } })), "Quote person", { type: "edit_quote", binderId: binder.id })}</TableCell>
+                  <TableCell className="p-0 border-r">{renderPersonSelect(draft.binder_person, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, binder_person: value } })), "Binder person", { type: "edit_binder", binderId: binder.id })}</TableCell>
                   <TableCell className="p-0 border-r font-medium min-w-[260px]">{renderTextInput(draft.client_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, client_name: value } })), "Client name", true)}</TableCell>
                   <TableCell className="p-0 border-r">{renderTextInput(draft.company_name, (value) => setRowDrafts((prev) => ({ ...prev, [binder.id]: { ...draft, company_name: value } })), "Company name")}</TableCell>
                   <TableCell
@@ -689,6 +819,88 @@ export default function BinderPipeline() {
           </PaginationContent>
         </Pagination>
       )}
+
+      {/* Manage Persons Dialog */}
+      <Dialog open={isAddPersonDialogOpen} onOpenChange={setIsAddPersonDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Manage Quote / Binder Persons
+            </DialogTitle>
+            <DialogDescription>
+              Add person names to easily select them across Quote Person and Binder Person fields.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter person name (e.g. ALEX, EMMA)..."
+                value={newPersonName}
+                onChange={(e) => setNewPersonName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCustomPerson();
+                  }
+                }}
+                className="flex-1"
+                autoFocus
+              />
+              <Button type="button" onClick={() => handleAddCustomPerson()} className="gap-1.5 shrink-0">
+                <Plus className="h-4 w-4" /> Add
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Available Persons ({allPersonOptions.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-2.5 bg-muted/40 rounded-lg border">
+                {allPersonOptions.map((person) => {
+                  const isCustom = customPersons.includes(person);
+                  return (
+                    <span
+                      key={person}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors",
+                        isCustom
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-background text-foreground border-border"
+                      )}
+                    >
+                      {person}
+                      {isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomPerson(person)}
+                          className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                          title="Remove custom person"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsAddPersonDialogOpen(false);
+                setPendingPersonTarget(null);
+                setNewPersonName("");
+              }}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={binderPendingDelete !== null} onOpenChange={(open) => !open && setBinderPendingDelete(null)}>
         <AlertDialogContent>

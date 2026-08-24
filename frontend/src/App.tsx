@@ -41,6 +41,7 @@ const RenewalRequestForm = lazy(() => import("./pages/RenewalRequestForm"));
 const PolicyChangeForm = lazy(() => import("./pages/PolicyChangeForm"));
 const CancellationForm = lazy(() => import("./pages/CancellationForm"));
 const CustomerIssueForm = lazy(() => import("./pages/CustomerIssueForm"));
+const UrgentForm = lazy(() => import("./pages/UrgentForm"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const NewBusinessForm = lazy(() => import("./pages/NewBusinessForm"));
 const ClientFormsLanding = lazy(() => import("./pages/ClientFormsLanding"));
@@ -93,6 +94,7 @@ function ProtectedRoutes() {
             <Route path="/crm/forms/changes" element={<PolicyChangeForm />} />
             <Route path="/crm/forms/cancellation" element={<CancellationForm />} />
             <Route path="/crm/forms/customer-issue" element={<CustomerIssueForm />} />
+            <Route path="/crm/forms/urgent" element={<UrgentForm />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>
@@ -125,6 +127,7 @@ const App = () => (
               <Route path="/forms/changes" element={<PolicyChangeForm />} />
               <Route path="/forms/cancellation" element={<CancellationForm />} />
               <Route path="/forms/customer-issue" element={<CustomerIssueForm />} />
+              <Route path="/forms/urgent" element={<UrgentForm />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </Suspense>
